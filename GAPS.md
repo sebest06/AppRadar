@@ -3,8 +3,8 @@
 Este archivo sirve para registrar las incertidumbres técnicas y de negocio que deben resolverse a medida que avanza el proyecto.
 
 ## 1. Reglas de Negocio
-- **Autenticación:** ¿Cómo será el flujo de registro y login? (¿Redes sociales, correo/contraseña, código de acceso por carrera?)
-- **Asignación de Carreras:** ¿Los usuarios ven todas las carreras del sistema y se inscriben, o un organizador les da acceso?
+- **Autenticación:** [RESUELTO] Se utilizará Google Login en el futuro. Por ahora se usará un Mock: usuario/usuario.
+- **Asignación de Carreras:** [MOCK] Se utilizará una carrera fija mockeada en las sierras de Córdoba con waypoints predefinidos.
 - **Validación de Waypoints:** ¿A cuántos metros de distancia de las coordenadas de un waypoint consideramos que el corredor ha "pasado" por ahí? ¿Será igual para todas las carreras?
 
 ## 2. Decisiones Técnicas

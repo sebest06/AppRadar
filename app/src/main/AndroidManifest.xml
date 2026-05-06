@@ -32,5 +32,9 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="API_KEY_AQUI" />
+
     </application>
 </manifest>

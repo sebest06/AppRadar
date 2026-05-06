@@ -1,0 +1,30 @@
+# Archivos temporales e IDEs
+*.iml
+.gradle
+/.idea/
+/.idea/workspace.xml
+/.idea/tasks.xml
+/.idea/gradle.xml
+/.idea/assetWizardSettings.xml
+/.idea/dictionaries
+/.idea/libraries
+/.idea/caches
+
+# Archivos de build (Android y Gradle)
+build/
+/app/build/
+.cxx/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Configuraciones locales (NUNCA DEBEN SUBIRSE AL REPO)
+local.properties
+
+# Archivos de Sistema Operativo
+.DS_Store
+Thumbs.db
+
+# Keystore (Si alguna vez creas uno para release, asegurate de que no se suba)
+*.jks
+*.keystore
