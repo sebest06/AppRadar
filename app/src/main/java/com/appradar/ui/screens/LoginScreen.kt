@@ -8,14 +8,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.appradar.data.mock.MockData
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.appradar.ui.navigation.Screen
+import com.appradar.ui.viewmodel.LoginViewModel
 
 @Composable
-fun LoginScreen(navController: NavController) {
+fun LoginScreen(
+    navController: NavController,
+    viewModel: LoginViewModel = hiltViewModel()
+) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val isLoading by viewModel.isLoading.collectAsState()
+    val loginSuccess by viewModel.loginSuccess.collectAsState()
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(loginSuccess) {
+        if (loginSuccess == true) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Login.route) { inclusive = true }
+            }
+        } else if (loginSuccess == false) {
+            errorMessage = "Credenciales incorrectas"
+            viewModel.resetLoginStatus()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -51,18 +68,20 @@ fun LoginScreen(navController: NavController) {
 
         Button(
             onClick = {
-                if (1==1){ /*username == "usuario" && password == "usuario") {*/
-                    errorMessage = null
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-                    }
+                if (username.isNotBlank() && password.isNotBlank()) {
+                    viewModel.login(username, password)
                 } else {
-                    errorMessage = "Credenciales incorrectas"
+                    errorMessage = "Complete todos los campos"
                 }
             },
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Iniciar Sesión")
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+            } else {
+                Text("Iniciar Sesión")
+            }
         }
     }
 }

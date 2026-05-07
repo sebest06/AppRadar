@@ -6,9 +6,12 @@ import com.appradar.data.local.entity.WaypointEntity
 
 object MockData {
     val mockUser = UserEntity(
-        userId = "mock_user_1",
-        username = "usuario",
-        team = "ProLife"
+        uuid = "mock_user_1",
+        user = "usuario",
+        passw = "1234",
+        nombre = "Usuario Mock",
+        team = "ProLife",
+        uuid_team = "team_1"
     )
 
     val mockTrail = TrailEntity(

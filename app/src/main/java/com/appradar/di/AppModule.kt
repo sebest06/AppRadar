@@ -30,4 +30,10 @@ object AppModule {
     fun provideRadarDao(appDatabase: AppDatabase): RadarDao {
         return appDatabase.radarDao()
     }
+
+    @Provides
+    @Singleton
+    fun provideUserPreferences(@ApplicationContext context: Context): com.appradar.util.UserPreferences {
+        return com.appradar.util.UserPreferences(context)
+    }
 }

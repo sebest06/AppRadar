@@ -29,6 +29,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val trails by viewModel.allTrails.collectAsState(initial = emptyList())
+    val currentUser by viewModel.currentUser.collectAsState()
 
     Scaffold(
         topBar = {
@@ -57,7 +58,7 @@ fun HomeScreen(
                 .padding(16.dp)
         ) {
             Text(
-                text = "¡Hola, ${MockData.mockUser.username}!",
+                text = "¡Hola, ${currentUser?.nombre ?: "Invitado"}!",
                 style = MaterialTheme.typography.headlineMedium
             )
             Text(

@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class RaceRunEntity(
     @PrimaryKey val runUuid: String,
     val trailUuid: String,
+    val userUuid: String = "",
     val trailName: String,
     val startTime: Long,
     val endTime: Long? = null,

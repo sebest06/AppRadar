@@ -63,6 +63,9 @@ interface RadarDao {
     @Query("SELECT * FROM waypoints WHERE trailUuid = :trailUuid")
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WaypointEntity>>
 
+    @Query("SELECT * FROM users LIMIT 1")
+    suspend fun getCurrentUser(): UserEntity?
+
     @Query("SELECT * FROM tracks WHERE isSynced = 0")
     suspend fun getUnsyncedTracks(): List<TrackEntity>
 

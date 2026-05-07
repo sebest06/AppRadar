@@ -7,6 +7,7 @@ import com.appradar.data.local.entity.PathPointEntity
 import com.appradar.data.local.entity.RaceRunEntity
 import com.appradar.data.local.entity.TrackEntity
 import com.appradar.data.local.entity.TrailEntity
+import com.appradar.data.local.entity.UserEntity
 import com.appradar.data.local.entity.WaypointEntity
 import com.appradar.data.repository.RadarRepository
 import com.appradar.util.LocationHelper
@@ -20,11 +21,18 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ActiveTrailViewModel @Inject constructor(
-    private val repository: RadarRepository
+    private val repository: RadarRepository,
+    private val userPreferences: com.appradar.util.UserPreferences
 ) : ViewModel() {
 
     private val _trail = MutableStateFlow<TrailEntity?>(null)
     val trail: StateFlow<TrailEntity?> = _trail
+
+    private val _currentUser = MutableStateFlow<UserEntity?>(null)
+    val currentUser: StateFlow<UserEntity?> = _currentUser
+
+    val userIconResId: StateFlow<Int> = userPreferences.userIconResId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.appradar.R.drawable.ic_user_runner)
 
     private val _waypoints = MutableStateFlow<List<WaypointEntity>>(emptyList())
     val waypoints: StateFlow<List<WaypointEntity>> = _waypoints
@@ -51,6 +59,7 @@ class ActiveTrailViewModel @Inject constructor(
 
     fun loadTrail(trailUuid: String) {
         viewModelScope.launch {
+            _currentUser.value = repository.getCurrentUser()
             _trail.value = repository.getTrailById(trailUuid)
             repository.getWaypointsForTrail(trailUuid).collect {
                 _waypoints.value = it
@@ -169,6 +178,7 @@ class ActiveTrailViewModel @Inject constructor(
             val run = RaceRunEntity(
                 runUuid = currentRunUuid,
                 trailUuid = _trail.value?.trailUuid ?: "",
+                userUuid = _currentUser.value?.uuid ?: "",
                 trailName = _trail.value?.name ?: "Carrera",
                 startTime = System.currentTimeMillis(), // Initial start
                 endTime = if (isCompleted) System.currentTimeMillis() else null,
@@ -176,6 +186,9 @@ class ActiveTrailViewModel @Inject constructor(
                 isCompleted = isCompleted
             )
             repository.saveRaceRun(run)
+            if (isCompleted) {
+                repository.uploadRaceRun(run)
+            }
         }
     }
 

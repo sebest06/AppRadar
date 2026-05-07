@@ -55,7 +55,17 @@ fun AppNavGraph() {
             val trailUuid = backStackEntry.arguments?.getString("trailUuid") ?: ""
             ActiveTrailScreen(navController, trailUuid)
         }
-        composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }
+        composable(
+            route = Screen.Leaderboard.route,
+            arguments = listOf(
+                navArgument("trailUuid") { type = NavType.StringType },
+                navArgument("teamUuid") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val trailUuid = backStackEntry.arguments?.getString("trailUuid") ?: ""
+            val teamUuid = backStackEntry.arguments?.getString("teamUuid") ?: ""
+            LeaderboardScreen(navController, trailUuid, teamUuid)
+        }
         composable(Screen.RaceHistory.route) { RaceHistoryScreen(navController) }
         composable(Screen.Settings.route) { SettingsScreen(navController) }
     }

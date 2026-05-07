@@ -8,6 +8,8 @@ sealed class Screen(val route: String) {
     object ActiveTrail : Screen("active_trail/{trailUuid}") {
         fun createRoute(trailUuid: String) = "active_trail/$trailUuid"
     }
-    object Leaderboard : Screen("leaderboard")
+    object Leaderboard : Screen("leaderboard/{trailUuid}/{teamUuid}") {
+        fun createRoute(trailUuid: String, teamUuid: String) = "leaderboard/$trailUuid/$teamUuid"
+    }
     object RaceHistory : Screen("race_history")
 }

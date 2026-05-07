@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.appradar.R
@@ -37,12 +38,14 @@ fun ActiveTrailScreen(
 ) {
     val context = LocalContext.current
     val trail by viewModel.trail.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
     val waypoints by viewModel.waypoints.collectAsState()
     val pathPoints by viewModel.pathPoints.collectAsState()
     val reachedWaypoints by viewModel.reachedWaypoints.collectAsState()
     val isRaceStarted by viewModel.isRaceStarted.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val elapsedTime by viewModel.elapsedTimeMillis.collectAsState()
+    val userIconResId by viewModel.userIconResId.collectAsState()
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -76,7 +79,11 @@ fun ActiveTrailScreen(
             TopAppBar(
                 title = { Text(trail?.name ?: "Cargando...") },
                 actions = {
-                    Button(onClick = { navController.navigate(com.appradar.ui.navigation.Screen.Leaderboard.route) }) {
+                    Button(onClick = { 
+                        val tUuid = trail?.trailUuid ?: ""
+                        val teamUuid = currentUser?.uuid_team ?: ""
+                        navController.navigate(com.appradar.ui.navigation.Screen.Leaderboard.createRoute(tUuid, teamUuid)) 
+                    }) {
                         Text("Ranking")
                     }
                 }
@@ -103,7 +110,23 @@ fun ActiveTrailScreen(
                             }
                         }
                         myLocationOverlay.enableMyLocation()
+                        // Use the selected icon for both stationary and moving states
+                        val userIcon = ContextCompat.getDrawable(context, userIconResId)
+                        userIcon?.let {
+                            myLocationOverlay.setPersonIcon(it.toBitmap())
+                            myLocationOverlay.setDirectionIcon(it.toBitmap())
+                        }
                         mapView.overlays.add(myLocationOverlay)
+                    } else {
+                        // Update existing overlay icon if it changed
+                        val myLocationOverlay = mapView.overlays.find { it is MyLocationNewOverlay } as? MyLocationNewOverlay
+                        myLocationOverlay?.let {
+                            val userIcon = ContextCompat.getDrawable(context, userIconResId)
+                            userIcon?.let { icon ->
+                                it.setPersonIcon(icon.toBitmap())
+                                it.setDirectionIcon(icon.toBitmap())
+                            }
+                        }
                     }
 
                     mapView.overlays.removeAll { it is Polyline || it is Marker }
