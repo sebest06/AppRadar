@@ -51,7 +51,7 @@ fun LoginScreen(navController: NavController) {
 
         Button(
             onClick = {
-                if (username == "usuario" && password == "usuario") {
+                if (1==1){ /*username == "usuario" && password == "usuario") {*/
                     errorMessage = null
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }

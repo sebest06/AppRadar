@@ -83,9 +83,8 @@ dependencies {
     // Location
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
-    // Google Maps
-    implementation("com.google.maps.android:maps-compose:4.3.0")
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    // OSMDroid (OpenStreetMap)
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 
     // DataStore (Para guardar sesión mockeada)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
