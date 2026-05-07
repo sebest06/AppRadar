@@ -121,27 +121,39 @@ class ActiveTrailViewModel @Inject constructor(
 
         val currentWaypoints = _waypoints.value
         val reached = _reachedWaypoints.value.toMutableSet()
+        val maxSkip = _trail.value?.maxSkip ?: 0
 
-        val nextWaypointIndex = reached.size
-        if (nextWaypointIndex < currentWaypoints.size) {
-            val nextWaypoint = currentWaypoints[nextWaypointIndex]
-            
+        val startIndex = reached.size
+        // Buscamos desde el siguiente waypoint esperado hasta startIndex + maxSkip
+        val limitIndex = (startIndex + maxSkip).coerceAtMost(currentWaypoints.size - 1)
+
+        for (i in startIndex..limitIndex) {
+            val waypoint = currentWaypoints[i]
             if (LocationHelper.isWithinWaypointRadius(
                     currentLocation = location,
-                    waypointLat = nextWaypoint.latitude,
-                    waypointLon = nextWaypoint.longitude,
-                    radiusInMeters = nextWaypoint.radiusInMeters
+                    waypointLat = waypoint.latitude,
+                    waypointLon = waypoint.longitude,
+                    radiusInMeters = waypoint.radiusInMeters
                 )
             ) {
-                reached.add(nextWaypoint.waypointUuid)
-                _reachedWaypoints.value = reached
-                
+                // Hemos alcanzado el waypoint i. 
+                // Marcamos todos los waypoints desde startIndex hasta i como alcanzados.
                 val currentTime = accumulatedTimeMillis + (System.currentTimeMillis() - lastStartTimeMillis)
-                saveWaypointReached(nextWaypoint.waypointUuid, currentTime)
+                
+                for (j in startIndex..i) {
+                    val wpToMark = currentWaypoints[j]
+                    if (!reached.contains(wpToMark.waypointUuid)) {
+                        reached.add(wpToMark.waypointUuid)
+                        saveWaypointReached(wpToMark.waypointUuid, currentTime)
+                    }
+                }
+                
+                _reachedWaypoints.value = reached
 
                 if (reached.size == currentWaypoints.size) {
                     finishRace(currentTime)
                 }
+                break // Solo procesamos un waypoint por actualización
             }
         }
     }

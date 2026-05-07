@@ -26,8 +26,16 @@ fun CreateRaceScreen(
     viewModel: CreateRaceViewModel = hiltViewModel()
 ) {
     var raceName by remember { mutableStateOf("") }
+    var numWaypoints by remember { mutableStateOf("5") }
+    var maxSkip by remember { mutableStateOf("0") }
+
     val previewData by viewModel.previewData.collectAsState()
+    val generatedWaypoints by viewModel.generatedWaypoints.collectAsState()
     val context = LocalContext.current
+
+    LaunchedEffect(numWaypoints, previewData) {
+        viewModel.updateWaypointCount(numWaypoints.toIntOrNull() ?: 0)
+    }
 
     val gpxPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -65,6 +73,25 @@ fun CreateRaceScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (previewData != null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = numWaypoints,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) numWaypoints = it },
+                        label = { Text("Cant. Waypoints") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = maxSkip,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) maxSkip = it },
+                        label = { Text("Max Salto") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Text("Vista previa:", style = MaterialTheme.typography.titleSmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 
@@ -94,11 +121,20 @@ fun CreateRaceScreen(
                             }
 
                             // Add Waypoint markers
-                            data.waypoints.forEach { wp ->
-                                val marker = Marker(mapView)
-                                marker.position = GeoPoint(wp.latitude, wp.longitude)
-                                marker.title = wp.name ?: "Waypoint"
-                                mapView.overlays.add(marker)
+                            if (generatedWaypoints.isNotEmpty()) {
+                                generatedWaypoints.forEach { wp ->
+                                    val marker = Marker(mapView)
+                                    marker.position = GeoPoint(wp.latitude, wp.longitude)
+                                    marker.title = wp.name
+                                    mapView.overlays.add(marker)
+                                }
+                            } else {
+                                data.waypoints.forEach { wp ->
+                                    val marker = Marker(mapView)
+                                    marker.position = GeoPoint(wp.latitude, wp.longitude)
+                                    marker.title = wp.name ?: "Waypoint"
+                                    mapView.overlays.add(marker)
+                                }
                             }
                             mapView.invalidate()
                         }
@@ -107,7 +143,11 @@ fun CreateRaceScreen(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Track: ${previewData?.trackPoints?.size} puntos")
-                Text("Waypoints detectados: ${previewData?.waypoints?.size}")
+                if (generatedWaypoints.isNotEmpty()) {
+                    Text("Waypoints a generar: ${generatedWaypoints.size}")
+                } else {
+                    Text("Waypoints detectados: ${previewData?.waypoints?.size}")
+                }
             } else {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     Text("Selecciona un archivo para ver la vista previa")
@@ -119,7 +159,11 @@ fun CreateRaceScreen(
             Button(
                 onClick = {
                     if (raceName.isNotBlank() && previewData != null) {
-                        viewModel.createRace(raceName) {
+                        viewModel.createRace(
+                            raceName = raceName,
+                            numWaypoints = numWaypoints.toIntOrNull() ?: 5,
+                            maxSkip = maxSkip.toIntOrNull() ?: 0
+                        ) {
                             navController.popBackStack()
                         }
                     }

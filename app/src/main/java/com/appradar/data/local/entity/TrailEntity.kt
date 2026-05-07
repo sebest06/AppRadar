@@ -8,5 +8,6 @@ data class TrailEntity(
     @PrimaryKey val trailUuid: String,
     val carreraId: String,
     val name: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val maxSkip: Int = 0
 )
