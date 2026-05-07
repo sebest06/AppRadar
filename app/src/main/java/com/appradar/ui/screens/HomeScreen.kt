@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -33,6 +35,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("AppRadar") },
                 actions = {
+                    IconButton(onClick = { navController.navigate(Screen.RaceHistory.route) }) {
+                        Icon(Icons.Default.List, contentDescription = "Historial")
+                    }
                     IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
                         Icon(Icons.Filled.Settings, contentDescription = "Configuración")
                     }

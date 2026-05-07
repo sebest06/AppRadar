@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.appradar.data.local.dao.RadarDao
 import com.appradar.data.local.entity.PathPointEntity
+import com.appradar.data.local.entity.RaceRunEntity
 import com.appradar.data.local.entity.TrackEntity
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
@@ -15,9 +16,10 @@ import com.appradar.data.local.entity.WaypointEntity
         TrailEntity::class,
         WaypointEntity::class,
         TrackEntity::class,
-        PathPointEntity::class
+        PathPointEntity::class,
+        RaceRunEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

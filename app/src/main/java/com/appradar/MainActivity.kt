@@ -19,6 +19,7 @@ import com.appradar.ui.screens.CreateRaceScreen
 import com.appradar.ui.screens.HomeScreen
 import com.appradar.ui.screens.LeaderboardScreen
 import com.appradar.ui.screens.LoginScreen
+import com.appradar.ui.screens.RaceHistoryScreen
 import com.appradar.ui.screens.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -54,7 +55,8 @@ fun AppNavGraph() {
             val trailUuid = backStackEntry.arguments?.getString("trailUuid") ?: ""
             ActiveTrailScreen(navController, trailUuid)
         }
-        composable(Screen.Settings.route) { SettingsScreen(navController) }
         composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }
+        composable(Screen.RaceHistory.route) { RaceHistoryScreen(navController) }
+        composable(Screen.Settings.route) { SettingsScreen(navController) }
     }
 }

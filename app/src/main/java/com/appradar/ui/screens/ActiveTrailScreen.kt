@@ -16,6 +16,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.appradar.R
 import com.appradar.ui.viewmodel.ActiveTrailViewModel
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -25,6 +26,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +40,9 @@ fun ActiveTrailScreen(
     val waypoints by viewModel.waypoints.collectAsState()
     val pathPoints by viewModel.pathPoints.collectAsState()
     val reachedWaypoints by viewModel.reachedWaypoints.collectAsState()
+    val isRaceStarted by viewModel.isRaceStarted.collectAsState()
+    val isPaused by viewModel.isPaused.collectAsState()
+    val elapsedTime by viewModel.elapsedTimeMillis.collectAsState()
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -90,9 +95,6 @@ fun ActiveTrailScreen(
                     }
                 },
                 update = { mapView ->
-                    // Use a simple list to manage overlays to avoid constant re-creation if possible,
-                    // but for OSMDroid, sometimes it's easier to rebuild for simple state changes.
-                    // To prevent infinite location updates, we only add the MyLocationOverlay once.
                     if (mapView.overlays.none { it is MyLocationNewOverlay } && hasLocationPermission) {
                         val myLocationOverlay = object : MyLocationNewOverlay(GpsMyLocationProvider(mapView.context), mapView) {
                             override fun onLocationChanged(location: android.location.Location?, source: org.osmdroid.views.overlay.mylocation.IMyLocationProvider?) {
@@ -104,8 +106,6 @@ fun ActiveTrailScreen(
                         mapView.overlays.add(myLocationOverlay)
                     }
 
-                    // For path and markers, we can clear and re-add or update existing ones.
-                    // Remove old polylines and markers
                     mapView.overlays.removeAll { it is Polyline || it is Marker }
 
                     if (pathPoints.isNotEmpty()) {
@@ -126,6 +126,12 @@ fun ActiveTrailScreen(
                         marker.position = GeoPoint(wp.latitude, wp.longitude)
                         val isReached = reachedWaypoints.contains(wp.waypointUuid)
                         marker.title = if (isReached) "Alcanzado: ${wp.name}" else wp.name
+                        
+                        // Set custom professional icon
+                        val iconRes = if (isReached) R.drawable.ic_waypoint_reached else R.drawable.ic_waypoint
+                        marker.icon = ContextCompat.getDrawable(context, iconRes)
+                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        
                         mapView.overlays.add(marker)
                     }
                     
@@ -133,17 +139,66 @@ fun ActiveTrailScreen(
                 }
             )
             
-            Card(
+            // UI Overlay for Race Info
+            Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp)
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Waypoints: ${reachedWaypoints.size} / ${waypoints.size}",
-                    modifier = Modifier.padding(8.dp),
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                if (isRaceStarted) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Tiempo: ${formatElapsedTime(elapsedTime)}",
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                    Text(
+                                        text = "Waypoints: ${reachedWaypoints.size} / ${waypoints.size}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilledTonalButton(onClick = { viewModel.togglePause() }) {
+                                        Text(if (isPaused) "REANUDAR" else "PAUSAR")
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { viewModel.stopRace() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Text("TERMINAR CARRERA")
+                            }
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { viewModel.startRace() },
+                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                    ) {
+                        Text("DAR INICIO A LA CARRERA", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
             }
         }
     }
+}
+
+private fun formatElapsedTime(millis: Long): String {
+    val hours = TimeUnit.MILLISECONDS.toHours(millis)
+    val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
+    val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
+    return String.format("%02d:%02d:%02d", hours, minutes, seconds)
 }

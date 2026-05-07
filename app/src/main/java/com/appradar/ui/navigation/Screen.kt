@@ -9,4 +9,5 @@ sealed class Screen(val route: String) {
         fun createRoute(trailUuid: String) = "active_trail/$trailUuid"
     }
     object Leaderboard : Screen("leaderboard")
+    object RaceHistory : Screen("race_history")
 }

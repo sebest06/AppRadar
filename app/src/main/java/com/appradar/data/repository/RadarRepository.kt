@@ -2,6 +2,7 @@ package com.appradar.data.repository
 
 import com.appradar.data.local.dao.RadarDao
 import com.appradar.data.local.entity.PathPointEntity
+import com.appradar.data.local.entity.RaceRunEntity
 import com.appradar.data.local.entity.TrackEntity
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
@@ -36,6 +37,23 @@ class RadarRepository @Inject constructor(
 
     suspend fun saveTrack(track: TrackEntity) {
         radarDao.insertTrack(track)
+    }
+
+    suspend fun saveRaceRun(run: RaceRunEntity) {
+        radarDao.insertRaceRun(run)
+    }
+
+    fun getAllRaceRuns(): Flow<List<RaceRunEntity>> {
+        return radarDao.getAllRaceRuns()
+    }
+
+    fun getTracksForRun(runUuid: String): Flow<List<TrackEntity>> {
+        return radarDao.getTracksForRun(runUuid)
+    }
+
+    suspend fun deleteRaceRun(runUuid: String) {
+        radarDao.deleteRaceRun(runUuid)
+        radarDao.deleteTracksForRun(runUuid)
     }
 
     fun getAllTrails(): Flow<List<TrailEntity>> {

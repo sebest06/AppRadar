@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.appradar.data.local.entity.PathPointEntity
+import com.appradar.data.local.entity.RaceRunEntity
 import com.appradar.data.local.entity.TrackEntity
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
@@ -31,6 +32,21 @@ interface RadarDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrack(track: TrackEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRaceRun(run: RaceRunEntity)
+
+    @Query("SELECT * FROM race_runs ORDER BY startTime DESC")
+    fun getAllRaceRuns(): Flow<List<RaceRunEntity>>
+
+    @Query("SELECT * FROM tracks WHERE runUuid = :runUuid ORDER BY timestamp ASC")
+    fun getTracksForRun(runUuid: String): Flow<List<TrackEntity>>
+
+    @Query("DELETE FROM race_runs WHERE runUuid = :runUuid")
+    suspend fun deleteRaceRun(runUuid: String)
+
+    @Query("DELETE FROM tracks WHERE runUuid = :runUuid")
+    suspend fun deleteTracksForRun(runUuid: String)
 
     @Query("SELECT * FROM trails")
     fun getAllTrails(): Flow<List<TrailEntity>>
