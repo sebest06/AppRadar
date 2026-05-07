@@ -1,5 +1,6 @@
 package com.appradar.di
 
+import com.appradar.data.remote.DynamicBaseUrlInterceptor
 import com.appradar.data.remote.RadarApiService
 import dagger.Module
 import dagger.Provides
@@ -15,14 +16,15 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "https://api.appradar.mock/" // MOCK URL por ahora
+    private const val BASE_URL = "http://localhost/" // Placeholder, will be replaced by interceptor
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(dynamicInterceptor: DynamicBaseUrlInterceptor): OkHttpClient {
         val logging = HttpLoggingInterceptor()
         logging.setLevel(HttpLoggingInterceptor.Level.BODY)
         return OkHttpClient.Builder()
+            .addInterceptor(dynamicInterceptor)
             .addInterceptor(logging)
             .build()
     }

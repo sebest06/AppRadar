@@ -17,11 +17,18 @@ fun LoginScreen(
     navController: NavController,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
     val isLoading by viewModel.isLoading.collectAsState()
     val loginSuccess by viewModel.loginSuccess.collectAsState()
+    val savedApiUrl by viewModel.apiUrl.collectAsState()
+    
+    var apiUrl by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(savedApiUrl) {
+        apiUrl = savedApiUrl
+    }
 
     LaunchedEffect(loginSuccess) {
         if (loginSuccess == true) {
@@ -43,6 +50,15 @@ fun LoginScreen(
     ) {
         Text(text = "AppRadar Trail", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(32.dp))
+
+        OutlinedTextField(
+            value = apiUrl,
+            onValueChange = { apiUrl = it },
+            label = { Text("Dirección REST API") },
+            placeholder = { Text("http://192.168.1.100:3000/") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = username,
@@ -68,8 +84,8 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                if (username.isNotBlank() && password.isNotBlank()) {
-                    viewModel.login(username, password)
+                if (username.isNotBlank() && password.isNotBlank() && apiUrl.isNotBlank()) {
+                    viewModel.login(apiUrl, username, password)
                 } else {
                     errorMessage = "Complete todos los campos"
                 }

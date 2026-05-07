@@ -14,8 +14,15 @@ import javax.inject.Singleton
 @Singleton
 class RadarRepository @Inject constructor(
     private val radarDao: RadarDao,
-    private val apiService: com.appradar.data.remote.RadarApiService
+    private val apiService: com.appradar.data.remote.RadarApiService,
+    private val userPreferences: com.appradar.util.UserPreferences
 ) {
+    val apiUrl: kotlinx.coroutines.flow.Flow<String> = userPreferences.apiUrl
+
+    suspend fun setApiUrl(url: String) {
+        userPreferences.setApiUrl(url)
+    }
+
     suspend fun login(user: String, passw: String): Boolean {
         return try {
             val response = apiService.login(mapOf("user" to user, "passw" to passw))

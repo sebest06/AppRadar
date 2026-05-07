@@ -13,6 +13,17 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 class UserPreferences(private val context: Context) {
     companion object {
         val USER_ICON_KEY = stringPreferencesKey("user_icon")
+        val API_URL_KEY = stringPreferencesKey("api_url")
+    }
+
+    val apiUrl: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[API_URL_KEY] ?: "http://localhost:3000/"
+    }
+
+    suspend fun setApiUrl(url: String) {
+        context.dataStore.edit { preferences ->
+            preferences[API_URL_KEY] = url
+        }
     }
 
     val userIconResId: Flow<Int> = context.dataStore.data.map { preferences ->

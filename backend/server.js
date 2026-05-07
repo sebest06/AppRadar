@@ -33,7 +33,7 @@ app.post('/auth/login', (req, res) => {
     if (foundUser) {
         res.json(foundUser);
     } else {
-        res.status(401).send('Invalid credentials');
+        res.status(401).send(req.body);
     }
 });
 
