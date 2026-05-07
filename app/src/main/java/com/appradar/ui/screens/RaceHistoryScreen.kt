@@ -14,6 +14,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.appradar.data.local.entity.RaceRunEntity
 import com.appradar.ui.viewmodel.HistoryViewModel
+import com.appradar.util.formatElapsedTime
 import java.text.SimpleDateFormat
 import java.util.*
 
