@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.appradar.data.local.entity.PathPointEntity
 import com.appradar.data.local.entity.TrackEntity
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
@@ -20,10 +21,25 @@ interface RadarDao {
     suspend fun insertTrails(trails: List<TrailEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrail(trail: TrailEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWaypoints(waypoints: List<WaypointEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPathPoints(pathPoints: List<PathPointEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrack(track: TrackEntity)
+
+    @Query("SELECT * FROM trails")
+    fun getAllTrails(): Flow<List<TrailEntity>>
+
+    @Query("SELECT * FROM trails WHERE trailUuid = :trailUuid")
+    suspend fun getTrailById(trailUuid: String): TrailEntity?
+
+    @Query("SELECT * FROM path_points WHERE trailUuid = :trailUuid ORDER BY `order` ASC")
+    fun getPathPointsForTrail(trailUuid: String): Flow<List<PathPointEntity>>
 
     @Query("SELECT * FROM waypoints WHERE trailUuid = :trailUuid")
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WaypointEntity>>

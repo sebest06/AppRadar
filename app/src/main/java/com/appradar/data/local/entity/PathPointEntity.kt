@@ -3,12 +3,11 @@ package com.appradar.data.local.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "waypoints")
-data class WaypointEntity(
-    @PrimaryKey val waypointUuid: String,
+@Entity(tableName = "path_points")
+data class PathPointEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val trailUuid: String,
-    val name: String = "",
     val latitude: Double,
     val longitude: Double,
-    val radiusInMeters: Float = 10f
+    val order: Int
 )

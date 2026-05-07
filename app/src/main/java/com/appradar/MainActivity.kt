@@ -8,11 +8,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.appradar.ui.navigation.Screen
 import com.appradar.ui.screens.ActiveTrailScreen
+import com.appradar.ui.screens.CreateRaceScreen
 import com.appradar.ui.screens.HomeScreen
 import com.appradar.ui.screens.LeaderboardScreen
 import com.appradar.ui.screens.LoginScreen
@@ -43,8 +46,15 @@ fun AppNavGraph() {
     NavHost(navController = navController, startDestination = Screen.Login.route) {
         composable(Screen.Login.route) { LoginScreen(navController) }
         composable(Screen.Home.route) { HomeScreen(navController) }
+        composable(Screen.CreateRace.route) { CreateRaceScreen(navController) }
+        composable(
+            route = Screen.ActiveTrail.route,
+            arguments = listOf(navArgument("trailUuid") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val trailUuid = backStackEntry.arguments?.getString("trailUuid") ?: ""
+            ActiveTrailScreen(navController, trailUuid)
+        }
         composable(Screen.Settings.route) { SettingsScreen(navController) }
-        composable(Screen.ActiveTrail.route) { ActiveTrailScreen(navController) }
         composable(Screen.Leaderboard.route) { LeaderboardScreen(navController) }
     }
 }

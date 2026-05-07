@@ -1,6 +1,7 @@
 package com.appradar.data.repository
 
 import com.appradar.data.local.dao.RadarDao
+import com.appradar.data.local.entity.PathPointEntity
 import com.appradar.data.local.entity.TrackEntity
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
@@ -17,6 +18,10 @@ class RadarRepository @Inject constructor(
         radarDao.insertUser(user)
     }
 
+    suspend fun saveTrail(trail: TrailEntity) {
+        radarDao.insertTrail(trail)
+    }
+
     suspend fun saveTrails(trails: List<TrailEntity>) {
         radarDao.insertTrails(trails)
     }
@@ -25,8 +30,24 @@ class RadarRepository @Inject constructor(
         radarDao.insertWaypoints(waypoints)
     }
 
+    suspend fun savePathPoints(pathPoints: List<PathPointEntity>) {
+        radarDao.insertPathPoints(pathPoints)
+    }
+
     suspend fun saveTrack(track: TrackEntity) {
         radarDao.insertTrack(track)
+    }
+
+    fun getAllTrails(): Flow<List<TrailEntity>> {
+        return radarDao.getAllTrails()
+    }
+
+    suspend fun getTrailById(trailUuid: String): TrailEntity? {
+        return radarDao.getTrailById(trailUuid)
+    }
+
+    fun getPathPointsForTrail(trailUuid: String): Flow<List<PathPointEntity>> {
+        return radarDao.getPathPointsForTrail(trailUuid)
     }
 
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WaypointEntity>> {
