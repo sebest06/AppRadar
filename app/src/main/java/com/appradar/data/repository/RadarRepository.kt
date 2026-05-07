@@ -72,6 +72,10 @@ class RadarRepository @Inject constructor(
         return radarDao.getWaypointsForTrail(trailUuid)
     }
 
+    suspend fun getWaypointsForTrailList(trailUuid: String): List<WaypointEntity> {
+        return radarDao.getWaypointsForTrailList(trailUuid)
+    }
+
     suspend fun getUnsyncedTracks(): List<TrackEntity> {
         return radarDao.getUnsyncedTracks()
     }

@@ -42,6 +42,9 @@ interface RadarDao {
     @Query("SELECT * FROM tracks WHERE runUuid = :runUuid ORDER BY timestamp ASC")
     fun getTracksForRun(runUuid: String): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM waypoints WHERE trailUuid = :trailUuid")
+    suspend fun getWaypointsForTrailList(trailUuid: String): List<WaypointEntity>
+
     @Query("DELETE FROM race_runs WHERE runUuid = :runUuid")
     suspend fun deleteRaceRun(runUuid: String)
 
