@@ -87,6 +87,10 @@ dependencies {
     // OSMDroid (OpenStreetMap)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 
+    // Wearable Data Layer (sincronización con reloj WearOS)
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
     // DataStore (Para guardar sesión mockeada)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 

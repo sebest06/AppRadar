@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "AppRadar"
 include(":app")
+include(":wear")

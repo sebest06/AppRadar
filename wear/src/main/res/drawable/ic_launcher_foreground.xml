@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Silueta simple de corredor para el icono del reloj -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0
+                          M42,40 l12,8 l12,-8 M54,48 l0,16 M48,64 l-6,16 M60,64 l6,16" />
+</vector>

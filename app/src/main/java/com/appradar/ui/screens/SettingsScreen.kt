@@ -19,6 +19,7 @@ import androidx.navigation.NavController
 import com.appradar.R
 import com.appradar.ui.navigation.Screen
 import com.appradar.ui.viewmodel.SettingsViewModel
+import com.appradar.ui.viewmodel.WearSyncState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +28,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val selectedIconResId by viewModel.userIconResId.collectAsState()
+    val wearSyncState by viewModel.wearSyncState.collectAsState()
     
     val icons = listOf(
         "runner" to R.drawable.ic_user_runner,
@@ -77,8 +79,43 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
             HorizontalDivider()
-            Spacer(modifier = Modifier.height(32.dp))
-            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("WearOS", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { viewModel.syncToWatch() },
+                enabled = wearSyncState !is WearSyncState.Syncing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (wearSyncState is WearSyncState.Syncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Sincronizar con Reloj")
+                }
+            }
+            when (val state = wearSyncState) {
+                is WearSyncState.Success -> Text(
+                    "Sincronizado correctamente",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                is WearSyncState.Error -> Text(
+                    state.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                else -> {}
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
             Button(
                 onClick = {
                     navController.navigate(Screen.Login.route) {
