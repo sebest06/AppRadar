@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { trailsApi } from '../services/api'
+import { trailsApi, teamsApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
-import type { Trail } from '../types'
+import type { Trail, User } from '../types'
 
 function SkeletonCard() {
   return (
@@ -21,8 +21,9 @@ function SkeletonCard() {
   )
 }
 
-function RaceCard({ trail }: { trail: Trail }) {
+function RaceCard({ trail, user, onDelete }: { trail: Trail, user: User | null, onDelete: (id: string) => void }) {
   const isLive = trail.isActive
+  const canDelete = user?.role === 'superuser' || user?.uuid === trail.createdBy
 
   return (
     <div className="card overflow-hidden hover:shadow-md transition-shadow group">
@@ -36,18 +37,25 @@ function RaceCard({ trail }: { trail: Trail }) {
           <h2 className="font-bold text-slate-900 text-base leading-snug group-hover:text-green-700 transition-colors">
             {trail.name}
           </h2>
-          {isLive ? (
-            <span className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
-              <span className="relative flex h-2 w-2">
-                <span className="live-dot relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+          <div className="flex items-center gap-2">
+            {isLive ? (
+              <span className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                <span className="relative flex h-2 w-2">
+                  <span className="live-dot relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                </span>
+                En vivo
               </span>
-              En vivo
-            </span>
-          ) : (
-            <span className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">
-              Inactiva
-            </span>
-          )}
+            ) : (
+              <span className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">
+                Inactiva
+              </span>
+            )}
+            {canDelete && (
+              <button onClick={(e) => { e.preventDefault(); if(confirm('¿Seguro que querés eliminar esta carrera?')) onDelete(trail.trailUuid) }} className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded transition-colors" title="Eliminar carrera">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/></svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {trail.description && (
@@ -95,6 +103,7 @@ function RaceCard({ trail }: { trail: Trail }) {
 export default function Dashboard() {
   const { user } = useAuthStore()
   const [trails, setTrails] = useState<Trail[]>([])
+  const [requests, setRequests] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -103,7 +112,23 @@ export default function Dashboard() {
       .then((r) => setTrails(r.data))
       .catch(() => setError('Error al cargar las carreras'))
       .finally(() => setLoading(false))
-  }, [])
+      
+    if (user?.role === 'organizer') {
+      teamsApi.getRequests().then(r => setRequests(r.data)).catch(() => {})
+    }
+  }, [user])
+
+  const handleDelete = (id: string) => {
+    trailsApi.delete(id).then(() => {
+      setTrails(t => t.filter(x => x.trailUuid !== id))
+    }).catch(() => alert('Error al eliminar la carrera'))
+  }
+
+  const handleRequest = (userId: string, action: 'accept' | 'reject') => {
+    const apiCall = action === 'accept' ? teamsApi.acceptRequest(userId) : teamsApi.rejectRequest(userId)
+    apiCall.then(() => setRequests(reqs => reqs.filter(r => r.uuid !== userId)))
+      .catch(() => alert('Error al procesar la solicitud'))
+  }
 
   const liveCount = trails.filter((t) => t.isActive).length
 
@@ -127,7 +152,7 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        {user?.role === 'organizer' && (
+        {['organizer', 'superuser'].includes(user?.role || '') && (
           <Link
             to="/races/new"
             className="btn-primary self-start sm:self-auto"
@@ -139,6 +164,33 @@ export default function Dashboard() {
           </Link>
         )}
       </div>
+
+      {user?.teamStatus === 'pending' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-medium">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Tu solicitud para unirte al equipo {user.team} está pendiente de aprobación por el organizador.
+        </div>
+      )}
+
+      {requests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Solicitudes de corredores</h2>
+          <div className="card p-0 overflow-hidden divide-y divide-slate-100">
+            {requests.map(req => (
+              <div key={req.uuid} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition-colors">
+                <div>
+                  <p className="font-semibold text-slate-800 text-sm">{req.nombre}</p>
+                  <p className="text-xs text-slate-500">@{req.user}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleRequest(req.uuid, 'accept')} className="text-xs font-medium px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-colors">Aceptar</button>
+                  <button onClick={() => handleRequest(req.uuid, 'reject')} className="text-xs font-medium px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors">Rechazar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* States */}
       {error && (
@@ -186,7 +238,7 @@ export default function Dashboard() {
             <div className="mb-6">
               <h2 className="text-xs font-semibold text-green-600 uppercase tracking-wider mb-3">En vivo ahora</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {trails.filter((t) => t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} />)}
+                {trails.filter((t) => t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
               </div>
             </div>
           )}
@@ -194,7 +246,7 @@ export default function Dashboard() {
             <div>
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Todas las carreras</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {trails.filter((t) => !t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} />)}
+                {trails.filter((t) => !t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
               </div>
             </div>
           )}

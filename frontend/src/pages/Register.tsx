@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { authApi } from '../services/api'
+import { authApi, teamsApi } from '../services/api'
 
 const roles = [
   { value: 'runner', label: 'Corredor', desc: 'Participa en carreras con GPS tracking' },
@@ -12,11 +12,16 @@ export default function Register() {
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
   const [form, setForm] = useState({
-    nombre: '', user: '', passw: '', confirmPassw: '', team: '',
+    nombre: '', user: '', passw: '', confirmPassw: '', team: '', uuid_team: '',
     role: 'runner' as 'runner' | 'organizer',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [teams, setTeams] = useState<{ uuid_team: string; team: string }[]>([])
+
+  useEffect(() => {
+    teamsApi.list().then((res) => setTeams(res.data)).catch(() => {})
+  }, [])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -28,7 +33,12 @@ export default function Register() {
     if (form.passw.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
     setLoading(true)
     try {
-      const { data } = await authApi.register({ user: form.user, passw: form.passw, nombre: form.nombre, team: form.team, role: form.role })
+      const { data } = await authApi.register({ 
+        user: form.user, passw: form.passw, nombre: form.nombre, 
+        team: form.role === 'organizer' ? form.team : undefined, 
+        uuid_team: form.role === 'runner' ? form.uuid_team : undefined,
+        role: form.role 
+      })
       login(data.user, data.token)
       navigate('/')
     } catch (err: unknown) {
@@ -96,7 +106,16 @@ export default function Register() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Equipo</label>
-              <input value={form.team} onChange={set('team')} className="input-base" placeholder="Los Cóndores" />
+              {form.role === 'runner' ? (
+                <select required value={form.uuid_team} onChange={set('uuid_team')} className="input-base">
+                  <option value="" disabled>Seleccioná un equipo</option>
+                  {teams.map((t) => (
+                    <option key={t.uuid_team} value={t.uuid_team}>{t.team}</option>
+                  ))}
+                </select>
+              ) : (
+                <input required value={form.team} onChange={set('team')} className="input-base" placeholder="Nombre de tu equipo" />
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contraseña</label>

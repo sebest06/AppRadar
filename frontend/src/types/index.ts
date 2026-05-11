@@ -4,7 +4,8 @@ export interface User {
   nombre: string
   team: string
   uuid_team: string
-  role: 'runner' | 'organizer' | 'spectator'
+  role: 'runner' | 'organizer' | 'spectator' | 'superuser'
+  teamStatus?: 'pending' | 'accepted' | 'rejected' | 'none'
 }
 
 export interface Trail {

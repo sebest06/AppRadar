@@ -29,8 +29,16 @@ api.interceptors.response.use(
 export const authApi = {
   login: (user: string, passw: string) =>
     api.post<{ token: string; user: import('../types').User }>('/auth/login', { user, passw }),
-  register: (data: { user: string; passw: string; nombre: string; team: string; role?: string }) =>
+  register: (data: { user: string; passw: string; nombre: string; team?: string; uuid_team?: string; role?: string }) =>
     api.post<{ token: string; user: import('../types').User }>('/auth/register', data),
+}
+
+// Teams
+export const teamsApi = {
+  list: () => api.get<{ uuid_team: string; team: string }[]>('/teams'),
+  getRequests: () => api.get<import('../types').User[]>('/team/requests'),
+  acceptRequest: (userUuid: string) => api.post(`/team/requests/${userUuid}/accept`),
+  rejectRequest: (userUuid: string) => api.post(`/team/requests/${userUuid}/reject`),
 }
 
 // Trails / Races
