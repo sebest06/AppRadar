@@ -4,14 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,12 +25,20 @@ fun HomeScreen(
 ) {
     val trails by viewModel.allTrails.collectAsState(initial = emptyList())
     val currentUser by viewModel.currentUser.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("AppRadar") },
                 actions = {
+                    IconButton(onClick = { viewModel.refreshTrails() }, enabled = !isRefreshing) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Sincronizar")
+                        }
+                    }
                     IconButton(onClick = { navController.navigate(Screen.RaceHistory.route) }) {
                         Icon(Icons.Default.List, contentDescription = "Historial")
                     }
@@ -97,7 +100,7 @@ fun TrailItem(trail: TrailEntity, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = trail.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                text = "ID: ${trail.carreraId}",
+                text = "${trail.distanceKm} km | ${trail.elevationM} m+",
                 style = MaterialTheme.typography.bodySmall
             )
         }

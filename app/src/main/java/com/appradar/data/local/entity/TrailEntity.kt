@@ -6,8 +6,11 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "trails")
 data class TrailEntity(
     @PrimaryKey val trailUuid: String,
-    val carreraId: String,
     val name: String,
-    val timestamp: Long,
-    val maxSkip: Int = 0
+    val description: String = "",
+    val distanceKm: Double = 0.0,
+    val elevationM: Double = 0.0,
+    val maxSkip: Int = 1,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isActive: Boolean = false
 )

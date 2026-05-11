@@ -1,24 +1,27 @@
 package com.appradar.data.mock
 
+import androidx.room.PrimaryKey
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
 import com.appradar.data.local.entity.WaypointEntity
+import kotlin.String
 
 object MockData {
     val mockUser = UserEntity(
         uuid = "mock_user_1",
         user = "usuario",
-        passw = "1234",
         nombre = "Usuario Mock",
         team = "ProLife",
-        uuid_team = "team_1"
+        uuid_team = "team_1",
+        role = "runner",
+        teamStatus = "accepted"
+
     )
 
     val mockTrail = TrailEntity(
         trailUuid = "mock_trail_sierras_1",
-        carreraId = "carrera_sierras_001",
         name = "Desafío Sierras de Córdoba",
-        timestamp = System.currentTimeMillis()
+        timestamp = System.currentTimeMillis(),
     )
 
     // Coordenadas aproximadas en las Sierras de Córdoba (ej. Cerro Uritorco / Capilla del Monte)

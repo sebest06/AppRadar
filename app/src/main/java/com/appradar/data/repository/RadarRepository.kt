@@ -27,7 +27,9 @@ class RadarRepository @Inject constructor(
         return try {
             val response = apiService.login(mapOf("user" to user, "passw" to passw))
             if (response.isSuccessful && response.body() != null) {
-                saveUser(response.body()!!)
+                val loginResponse = response.body()!!
+                userPreferences.setAuthToken(loginResponse.token)
+                saveUser(loginResponse.user)
                 true
             } else false
         } catch (e: Exception) {
@@ -39,7 +41,12 @@ class RadarRepository @Inject constructor(
         try {
             val response = apiService.getTrails()
             if (response.isSuccessful && response.body() != null) {
-                saveTrails(response.body()!!)
+                val trails = response.body()!!
+                saveTrails(trails)
+                // Para cada carrera, descargar detalles (waypoints)
+                trails.forEach { trail ->
+                    downloadTrailDetails(trail.trailUuid)
+                }
             }
         } catch (e: Exception) {}
     }
@@ -49,7 +56,17 @@ class RadarRepository @Inject constructor(
             val response = apiService.getTrailDetails(trailUuid)
             if (response.isSuccessful && response.body() != null) {
                 val details = response.body()!!
-                saveTrail(details.trail)
+                val trail = TrailEntity(
+                    trailUuid = details.trailUuid,
+                    name = details.name,
+                    description = details.description,
+                    distanceKm = details.distanceKm,
+                    elevationM = details.elevationM,
+                    maxSkip = details.maxSkip,
+                    timestamp = System.currentTimeMillis(),
+                    isActive = details.isActive
+                )
+                saveTrail(trail)
                 saveWaypoints(details.waypoints)
             }
         } catch (e: Exception) {}
@@ -73,7 +90,7 @@ class RadarRepository @Inject constructor(
         } catch (e: Exception) {}
     }
 
-    suspend fun getRankings(trailUuid: String, teamUuid: String): List<com.appradar.data.remote.RankingEntry> {
+    suspend fun getRankings(trailUuid: String, teamUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
         return try {
             val response = apiService.getRankings(trailUuid, teamUuid)
             if (response.isSuccessful) response.body() ?: emptyList() else emptyList()

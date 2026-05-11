@@ -13,8 +13,15 @@ class DynamicBaseUrlInterceptor @Inject constructor(
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
-        val newBaseUrl = runBlocking { userPreferences.apiUrl.first() }
+        val settings = runBlocking { 
+            val url = userPreferences.apiUrl.first()
+            val token = userPreferences.authToken.first()
+            url to token
+        }
         
+        val newBaseUrl = settings.first
+        val authToken = settings.second
+
         val newUrl = originalRequest.url.newBuilder()
             .apply {
                 val httpUrl = newBaseUrl.toHttpUrlOrNull()
@@ -26,6 +33,11 @@ class DynamicBaseUrlInterceptor @Inject constructor(
             }
             .build()
             
-        return chain.proceed(originalRequest.newBuilder().url(newUrl).build())
+        val requestBuilder = originalRequest.newBuilder().url(newUrl)
+        if (authToken != null) {
+            requestBuilder.header("Authorization", "Bearer $authToken")
+        }
+            
+        return chain.proceed(requestBuilder.build())
     }
 }

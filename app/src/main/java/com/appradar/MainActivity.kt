@@ -23,12 +23,25 @@ import com.appradar.ui.screens.RaceHistoryScreen
 import com.appradar.ui.screens.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
+// ...
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        val appColorScheme = lightColorScheme(
+            primary = Color(0xFF6750A4),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFEADDFF),
+            onPrimaryContainer = Color(0xFF21005D),
+            surface = Color(0xFFFEF7FF),
+            onSurface = Color(0xFF1C1B1F),
+        )
+
         setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme = appColorScheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

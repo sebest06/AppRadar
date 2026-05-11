@@ -333,14 +333,21 @@ app.post('/tracks/upload', authMiddleware, (req, res) => {
 // ─── Rankings ─────────────────────────────────────────────────────────────────
 
 app.get('/rankings', (req, res) => {
-  const { trailUuid } = req.query
+  const { trailUuid, teamUuid } = req.query
   if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
 
-  const totalWaypoints = db
-    .prepare('SELECT COUNT(*) as c FROM waypoints WHERE trailUuid = ?')
-    .get(trailUuid).c
+  let runs = []
+  if (teamUuid) {
+      runs = db.prepare(`
+        SELECT rr.* FROM race_runs rr
+        JOIN users u ON rr.userUuid = u.uuid
+        WHERE rr.trailUuid = ? AND u.uuid_team = ?
+      `).all(trailUuid, teamUuid)
+  } else {
+      runs = db.prepare('SELECT * FROM race_runs WHERE trailUuid = ?').all(trailUuid)
+  }
 
-  const runs = db.prepare('SELECT * FROM race_runs WHERE trailUuid = ?').all(trailUuid)
+  const totalWaypoints = db
 
   const rankings = runs.map((run) => {
     const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(run.userUuid)

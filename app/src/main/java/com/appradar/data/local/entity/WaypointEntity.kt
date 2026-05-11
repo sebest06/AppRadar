@@ -2,13 +2,29 @@ package com.appradar.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
 
 @Entity(tableName = "waypoints")
 data class WaypointEntity(
-    @PrimaryKey val waypointUuid: String,
+    @PrimaryKey 
+    @SerializedName("waypointUuid")
+    val waypointUuid: String,
+    
+    @SerializedName("trailUuid")
     val trailUuid: String,
+    
+    @SerializedName("order")
+    val order: Int = 0,
+    
+    @SerializedName("name")
     val name: String = "",
+    
+    @SerializedName("lat")
     val latitude: Double,
+    
+    @SerializedName("lon")
     val longitude: Double,
-    val radiusInMeters: Float = 10f
+    
+    @SerializedName("radius")
+    val radiusInMeters: Float = 50f
 )

@@ -21,9 +21,21 @@ class HomeViewModel @Inject constructor(
     private val _currentUser = MutableStateFlow<UserEntity?>(null)
     val currentUser: StateFlow<UserEntity?> = _currentUser
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
     init {
         viewModelScope.launch {
             _currentUser.value = repository.getCurrentUser()
+        }
+        refreshTrails()
+    }
+
+    fun refreshTrails() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            repository.syncTrailsFromApi()
+            _isRefreshing.value = false
         }
     }
 }

@@ -64,7 +64,6 @@ class CreateRaceViewModel @Inject constructor(
             val trailUuid = UUID.randomUUID().toString()
             val trail = TrailEntity(
                 trailUuid = trailUuid,
-                carreraId = UUID.randomUUID().toString(),
                 name = raceName,
                 timestamp = System.currentTimeMillis(),
                 maxSkip = maxSkip

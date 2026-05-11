@@ -7,9 +7,10 @@ import androidx.room.PrimaryKey
 data class TrackEntity(
     @PrimaryKey val trackUuid: String,
     val trailUuid: String,
-    val runUuid: String, // Unique UUID for each specific start of a race
+    val runUuid: String,
+    val userUuid: String = "",
     val waypointUuid: String,
     val timestamp: Long,
-    val timeFromStart: Long = 0L, // Time in millis since race start (excluding pauses)
+    val timeFromStart: Long = 0L,
     val isSynced: Boolean = false
 )

@@ -198,6 +198,7 @@ class ActiveTrailViewModel @Inject constructor(
                 trackUuid = UUID.randomUUID().toString(),
                 trailUuid = _trail.value?.trailUuid ?: "",
                 runUuid = currentRunUuid,
+                userUuid = _currentUser.value?.uuid ?: "",
                 waypointUuid = waypointUuid,
                 timestamp = System.currentTimeMillis(),
                 timeFromStart = timeFromStart

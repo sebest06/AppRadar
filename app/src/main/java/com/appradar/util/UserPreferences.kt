@@ -14,6 +14,16 @@ class UserPreferences(private val context: Context) {
     companion object {
         val USER_ICON_KEY = stringPreferencesKey("user_icon")
         val API_URL_KEY = stringPreferencesKey("api_url")
+        val AUTH_TOKEN_KEY = stringPreferencesKey("auth_token")
+    }
+
+    val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN_KEY] }
+
+    suspend fun setAuthToken(token: String?) {
+        context.dataStore.edit { preferences ->
+            if (token == null) preferences.remove(AUTH_TOKEN_KEY)
+            else preferences[AUTH_TOKEN_KEY] = token
+        }
     }
 
     val apiUrl: Flow<String> = context.dataStore.data.map { preferences ->

@@ -15,7 +15,7 @@ import retrofit2.http.Query
 interface RadarApiService {
 
     @POST("auth/login")
-    suspend fun login(@Body credentials: Map<String, String>): Response<UserEntity>
+    suspend fun login(@Body credentials: Map<String, String>): Response<LoginResponse>
 
     @GET("trails")
     suspend fun getTrails(): Response<List<TrailEntity>>
@@ -32,12 +32,23 @@ interface RadarApiService {
     @GET("rankings")
     suspend fun getRankings(
         @Query("trailUuid") trailUuid: String,
-        @Query("teamUuid") teamUuid: String
+        @Query("teamUuid") teamUuid: String? = null
     ): Response<List<RankingEntry>>
 }
 
+data class LoginResponse(
+    val token: String,
+    val user: UserEntity
+)
+
 data class TrailDetailsResponse(
-    val trail: TrailEntity,
+    val trailUuid: String,
+    val name: String,
+    val description: String,
+    val distanceKm: Double,
+    val elevationM: Double,
+    val maxSkip: Int,
+    val isActive: Boolean,
     val waypoints: List<WaypointEntity>
 )
 
