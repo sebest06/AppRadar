@@ -3,6 +3,7 @@ package com.appradar.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -56,21 +57,28 @@ fun ActiveTrailScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || 
+        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
 
     LaunchedEffect(trailUuid) {
         viewModel.loadTrail(trailUuid)
         Configuration.getInstance().userAgentValue = context.packageName
-        
+
+        val permsToRequest = mutableListOf<String>()
         if (!hasLocationPermission) {
-            permissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
+            permsToRequest += Manifest.permission.ACCESS_FINE_LOCATION
+            permsToRequest += Manifest.permission.ACCESS_COARSE_LOCATION
+        }
+        // Pedir permiso de notificaciones en Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            permsToRequest += Manifest.permission.POST_NOTIFICATIONS
+        }
+        if (permsToRequest.isNotEmpty()) {
+            permissionLauncher.launch(permsToRequest.toTypedArray())
         }
     }
 

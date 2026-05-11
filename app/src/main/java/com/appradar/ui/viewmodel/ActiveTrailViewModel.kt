@@ -1,5 +1,7 @@
 package com.appradar.ui.viewmodel
 
+import android.content.Context
+import android.content.Intent
 import android.location.Location
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,8 +12,10 @@ import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
 import com.appradar.data.local.entity.WaypointEntity
 import com.appradar.data.repository.RadarRepository
+import com.appradar.service.TrackingService
 import com.appradar.util.LocationHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -21,6 +25,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ActiveTrailViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: RadarRepository,
     private val userPreferences: com.appradar.util.UserPreferences
 ) : ViewModel() {
@@ -81,21 +86,36 @@ class ActiveTrailViewModel @Inject constructor(
         currentRunUuid = UUID.randomUUID().toString()
         lastStartTimeMillis = System.currentTimeMillis()
         accumulatedTimeMillis = 0L
-        
+
         saveRaceRun(isCompleted = false)
         startTimer()
+        startTrackingService()
     }
 
     fun stopRace() {
         if (!_isRaceStarted.value) return
-        
+
         timerJob?.cancel()
         val finalTime = if (_isPaused.value) accumulatedTimeMillis else accumulatedTimeMillis + (System.currentTimeMillis() - lastStartTimeMillis)
         _elapsedTimeMillis.value = finalTime
         _isRaceStarted.value = false
         _isPaused.value = false
-        
+
         saveRaceRun(isCompleted = _reachedWaypoints.value.size == _waypoints.value.size, totalTime = finalTime)
+        context.stopService(Intent(context, TrackingService::class.java))
+    }
+
+    private fun startTrackingService() {
+        val trail = _trail.value ?: return
+        val user  = _currentUser.value
+        val intent = Intent(context, TrackingService::class.java).apply {
+            putExtra(TrackingService.EXTRA_TRAIL_UUID, trail.trailUuid)
+            putExtra(TrackingService.EXTRA_TEAM_UUID,  user?.uuid_team ?: "")
+            putExtra(TrackingService.EXTRA_USER_UUID,  user?.uuid ?: "")
+            putExtra(TrackingService.EXTRA_RUN_UUID,   currentRunUuid)
+            putExtra(TrackingService.EXTRA_MAX_SKIP,   trail.maxSkip)
+        }
+        context.startForegroundService(intent)
     }
 
     fun togglePause() {

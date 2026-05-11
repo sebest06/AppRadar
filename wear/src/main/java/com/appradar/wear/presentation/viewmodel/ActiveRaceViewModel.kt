@@ -47,6 +47,9 @@ class ActiveRaceViewModel @Inject constructor(
     private val _nextWaypointDistance = MutableStateFlow<Float?>(null)
     val nextWaypointDistance: StateFlow<Float?> = _nextWaypointDistance
 
+    private val _currentLocation = MutableStateFlow<Location?>(null)
+    val currentLocation: StateFlow<Location?> = _currentLocation
+
     private var currentRunUuid: String = ""
     private var lastStartTimeMillis: Long = 0L
     private var accumulatedTimeMillis: Long = 0L
@@ -58,6 +61,19 @@ class ActiveRaceViewModel @Inject constructor(
             _trail.value = repository.getTrailById(trailUuid)
             repository.getWaypointsForTrail(trailUuid).collect { _waypoints.value = it }
         }
+        // Iniciar GPS desde el principio para que el mapa muestre posición antes de arrancar
+        startGpsPreview()
+    }
+
+    private fun startGpsPreview() {
+        val ctx = getApplication<Application>()
+        ctx.startForegroundService(Intent(ctx, WearTrackingService::class.java))
+        locationJob = viewModelScope.launch {
+            WearTrackingService.locationFlow.collect { location ->
+                _currentLocation.value = location
+                if (_isRaceStarted.value && !_isPaused.value) onLocationUpdate(location)
+            }
+        }
     }
 
     fun startRace() {
@@ -68,30 +84,16 @@ class ActiveRaceViewModel @Inject constructor(
         currentRunUuid = UUID.randomUUID().toString()
         lastStartTimeMillis = System.currentTimeMillis()
         accumulatedTimeMillis = 0L
-
-        val ctx = getApplication<Application>()
-        ctx.startForegroundService(Intent(ctx, WearTrackingService::class.java))
-
-        locationJob = viewModelScope.launch {
-            WearTrackingService.locationFlow.collect { location ->
-                if (_isRaceStarted.value && !_isPaused.value) onLocationUpdate(location)
-            }
-        }
         startTimer()
     }
 
     fun stopRace() {
         if (!_isRaceStarted.value) return
         timerJob?.cancel()
-        locationJob?.cancel()
         val finalTime = elapsed()
         _elapsedTimeMillis.value = finalTime
         _isRaceStarted.value = false
         _isPaused.value = false
-
-        val ctx = getApplication<Application>()
-        ctx.stopService(Intent(ctx, WearTrackingService::class.java))
-
         viewModelScope.launch { repository.uploadUnsyncedTracks() }
     }
 
@@ -110,6 +112,7 @@ class ActiveRaceViewModel @Inject constructor(
     }
 
     private fun onLocationUpdate(location: Location) {
+        _currentLocation.value = location
         val wps = _waypoints.value
         val reached = _reachedWaypoints.value.toMutableSet()
         val maxSkip = _trail.value?.maxSkip ?: 0
@@ -149,10 +152,7 @@ class ActiveRaceViewModel @Inject constructor(
 
     private fun finishRace(finalTime: Long) {
         timerJob?.cancel()
-        locationJob?.cancel()
         _isRaceStarted.value = false
-        val ctx = getApplication<Application>()
-        ctx.stopService(Intent(ctx, WearTrackingService::class.java))
         viewModelScope.launch { repository.uploadUnsyncedTracks() }
     }
 
@@ -191,5 +191,7 @@ class ActiveRaceViewModel @Inject constructor(
         super.onCleared()
         timerJob?.cancel()
         locationJob?.cancel()
+        val ctx = getApplication<Application>()
+        ctx.stopService(Intent(ctx, WearTrackingService::class.java))
     }
 }
