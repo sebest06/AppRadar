@@ -110,6 +110,7 @@ fun ActiveTrailScreen(
                             }
                         }
                         myLocationOverlay.enableMyLocation()
+                        myLocationOverlay.enableFollowLocation()
                         // Use the selected icon for both stationary and moving states
                         val userIcon = ContextCompat.getDrawable(context, userIconResId)
                         userIcon?.let {
