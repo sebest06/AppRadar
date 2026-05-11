@@ -24,7 +24,7 @@ class LeaderboardViewModel @Inject constructor(
     fun refreshRankings(trailUuid: String, teamUuid: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            _rankings.value = repository.getRankings(trailUuid, teamUuid)
+            _rankings.value = repository.getRankings(trailUuid, teamUuid.ifEmpty { null })
             _isLoading.value = false
         }
     }

@@ -47,6 +47,7 @@ class TrackingService : Service() {
     private var waypoints: List<WaypointEntity> = emptyList()
     private val reachedWaypoints = mutableSetOf<String>()
     private var maxSkip = 1
+    private var lastGpsUploadMs = 0L
 
     companion object {
         const val EXTRA_TRAIL_UUID = "trailUuid"
@@ -105,6 +106,13 @@ class TrackingService : Service() {
     private fun processLocation(location: Location) {
         val wps = waypoints
         if (wps.isEmpty() || runUuid.isEmpty()) return
+
+        // Upload GPS position to backend every 15 seconds for live map
+        val now = System.currentTimeMillis()
+        if (now - lastGpsUploadMs >= 15_000L) {
+            lastGpsUploadMs = now
+            serviceScope.launch { repository.uploadGpsPosition(trailUuid, location.latitude, location.longitude, location.accuracy) }
+        }
 
         serviceScope.launch {
             val startIndex = reachedWaypoints.size

@@ -34,6 +34,9 @@ interface RadarApiService {
         @Query("trailUuid") trailUuid: String,
         @Query("teamUuid") teamUuid: String? = null
     ): Response<List<RankingEntry>>
+
+    @POST("gps/upload")
+    suspend fun uploadGpsPosition(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<Unit>
 }
 
 data class LoginResponse(

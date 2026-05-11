@@ -95,6 +95,8 @@ db.exec(`
 
 try { db.exec(`ALTER TABLE users ADD COLUMN teamStatus TEXT DEFAULT 'accepted'`) } catch (e) { /* ignores if exists */ }
 try { db.exec(`ALTER TABLE trails ADD COLUMN teamUuid TEXT DEFAULT NULL`) } catch (e) { /* ignores if exists */ }
+try { db.exec(`ALTER TABLE race_runs ADD COLUMN sessionUuid TEXT DEFAULT NULL`) } catch (e) { /* ignores if exists */ }
+db.exec(`CREATE INDEX IF NOT EXISTS idx_gps_user_trail_ts ON gps_positions(userUuid, trailUuid, timestamp)`)
 
 // Seed admin user if not exists
 const adminExists = db.prepare('SELECT 1 FROM users WHERE user = ?').get('admin')
@@ -303,14 +305,32 @@ app.post('/trails/:trailId/activate', authMiddleware, requireRole('organizer', '
 
 // ─── Race Runs & Tracks ───────────────────────────────────────────────────────
 
+function findOrCreateSession(trailUuid, startTime) {
+  const ts = startTime || Date.now()
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+  const row = db.prepare(`
+    SELECT sessionUuid, MIN(startTime) as sessionStart
+    FROM race_runs
+    WHERE trailUuid = ? AND sessionUuid IS NOT NULL
+    GROUP BY sessionUuid
+    HAVING sessionStart >= ? AND sessionStart <= ?
+    ORDER BY sessionStart DESC
+    LIMIT 1
+  `).get(trailUuid, ts - TWO_HOURS_MS, ts)
+  return row?.sessionUuid ?? uuidv4()
+}
+
 app.post('/runs/upload', authMiddleware, (req, res) => {
   const run = req.body
+  const sessionUuid = findOrCreateSession(run.trailUuid, run.startTime)
   const existing = db.prepare('SELECT 1 FROM race_runs WHERE runUuid = ?').get(run.runUuid)
   if (!existing) {
     db.prepare(`
-      INSERT INTO race_runs (runUuid, trailUuid, userUuid, startTime, endTime, totalTime, isCompleted)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(run.runUuid, run.trailUuid, run.userUuid, run.startTime, run.endTime, run.totalTime, run.isCompleted ? 1 : 0)
+      INSERT INTO race_runs (runUuid, trailUuid, userUuid, startTime, endTime, totalTime, isCompleted, sessionUuid)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(run.runUuid, run.trailUuid, run.userUuid, run.startTime, run.endTime, run.totalTime, run.isCompleted ? 1 : 0, sessionUuid)
+  } else {
+    db.prepare('UPDATE race_runs SET sessionUuid = ? WHERE runUuid = ? AND sessionUuid IS NULL').run(sessionUuid, run.runUuid)
   }
   res.status(200).json({ ok: true })
 })
@@ -328,26 +348,49 @@ app.post('/tracks/upload', authMiddleware, (req, res) => {
   })
   insertMany(tracks)
   res.status(200).json({ ok: true })
+
+  // Broadcast session-filtered rankings to listening clients
+  const affectedTrails = [...new Set(tracks.map(t => t.trailUuid).filter(Boolean))]
+  for (const trailUuid of affectedTrails) {
+    const firstTrack = tracks.find(t => t.trailUuid === trailUuid)
+    const sessionRow = firstTrack
+      ? db.prepare('SELECT sessionUuid FROM race_runs WHERE runUuid = ?').get(firstTrack.runUuid)
+      : null
+    const rankings = computeRankings(trailUuid, null, sessionRow?.sessionUuid ?? null)
+    io.to(`race:${trailUuid}`).emit('race_update', rankings)
+  }
 })
 
 // ─── Rankings ─────────────────────────────────────────────────────────────────
 
-app.get('/rankings', (req, res) => {
-  const { trailUuid, teamUuid } = req.query
-  if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
+function latestSession(trailUuid) {
+  return db.prepare(`
+    SELECT sessionUuid FROM race_runs
+    WHERE trailUuid = ? AND sessionUuid IS NOT NULL
+    GROUP BY sessionUuid ORDER BY MIN(startTime) DESC LIMIT 1
+  `).get(trailUuid)?.sessionUuid ?? null
+}
 
-  let runs = []
-  if (teamUuid) {
-      runs = db.prepare(`
-        SELECT rr.* FROM race_runs rr
-        JOIN users u ON rr.userUuid = u.uuid
-        WHERE rr.trailUuid = ? AND u.uuid_team = ?
-      `).all(trailUuid, teamUuid)
+function computeRankings(trailUuid, teamUuid, sessionUuid = null) {
+  let query, params
+  if (sessionUuid && teamUuid) {
+    query = `SELECT rr.* FROM race_runs rr JOIN users u ON rr.userUuid = u.uuid WHERE rr.trailUuid = ? AND rr.sessionUuid = ? AND u.uuid_team = ?`
+    params = [trailUuid, sessionUuid, teamUuid]
+  } else if (sessionUuid) {
+    query = `SELECT * FROM race_runs WHERE trailUuid = ? AND sessionUuid = ?`
+    params = [trailUuid, sessionUuid]
+  } else if (teamUuid) {
+    query = `SELECT rr.* FROM race_runs rr JOIN users u ON rr.userUuid = u.uuid WHERE rr.trailUuid = ? AND u.uuid_team = ?`
+    params = [trailUuid, teamUuid]
   } else {
-      runs = db.prepare('SELECT * FROM race_runs WHERE trailUuid = ?').all(trailUuid)
+    query = `SELECT * FROM race_runs WHERE trailUuid = ?`
+    params = [trailUuid]
   }
+  const runs = db.prepare(query).all(...params)
 
   const totalWaypoints = db
+    .prepare('SELECT COUNT(*) as c FROM waypoints WHERE trailUuid = ?')
+    .get(trailUuid)?.c ?? 0
 
   const rankings = runs.map((run) => {
     const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(run.userUuid)
@@ -375,7 +418,89 @@ app.get('/rankings', (req, res) => {
     return a.lastWaypointTime - b.lastWaypointTime
   })
 
-  res.json(rankings)
+  return rankings
+}
+
+app.get('/rankings', (req, res) => {
+  const { trailUuid, teamUuid, sessionUuid: reqSession } = req.query
+  if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
+  const sessionUuid = reqSession || latestSession(trailUuid)
+  res.json(computeRankings(trailUuid, teamUuid || null, sessionUuid))
+})
+
+// ─── Race Sessions & Live Positions ──────────────────────────────────────────
+
+app.get('/races/sessions', (req, res) => {
+  const { trailUuid } = req.query
+  if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
+  const sessions = db.prepare(`
+    SELECT sessionUuid, MIN(startTime) as startTime, COUNT(*) as runnerCount
+    FROM race_runs
+    WHERE trailUuid = ? AND sessionUuid IS NOT NULL
+    GROUP BY sessionUuid
+    ORDER BY startTime DESC
+  `).all(trailUuid)
+  res.json(sessions)
+})
+
+app.get('/races/live', (req, res) => {
+  const { trailUuid, sessionUuid: reqSession } = req.query
+  if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
+
+  const sessionUuid = reqSession || latestSession(trailUuid)
+  if (!sessionUuid) return res.json([])
+
+  const runs = db.prepare('SELECT * FROM race_runs WHERE trailUuid = ? AND sessionUuid = ?').all(trailUuid, sessionUuid)
+  const ONLINE_MS = 120_000
+  const now = Date.now()
+
+  const positions = runs.map((run) => {
+    const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(run.userUuid)
+
+    const gps = db.prepare(`
+      SELECT lat, lon, timestamp FROM gps_positions
+      WHERE userUuid = ? AND trailUuid = ?
+      ORDER BY timestamp DESC LIMIT 1
+    `).get(run.userUuid, trailUuid)
+
+    if (gps && (now - gps.timestamp) <= ONLINE_MS) {
+      return { userUuid: run.userUuid, userName: user?.nombre ?? 'Desconocido', teamName: user?.team ?? '', lat: gps.lat, lon: gps.lon, timestamp: gps.timestamp, isOnline: true }
+    }
+
+    const lastWp = db.prepare(`
+      SELECT w.lat, w.lon, t.timestamp
+      FROM tracks t JOIN waypoints w ON w.waypointUuid = t.waypointUuid
+      WHERE t.runUuid = ? AND t.trailUuid = ?
+      ORDER BY t.timestamp DESC LIMIT 1
+    `).get(run.runUuid, trailUuid)
+
+    if (!lastWp) return null
+    return { userUuid: run.userUuid, userName: user?.nombre ?? 'Desconocido', teamName: user?.team ?? '', lat: lastWp.lat, lon: lastWp.lon, timestamp: lastWp.timestamp, isOnline: false }
+  }).filter(Boolean)
+
+  res.json(positions)
+})
+
+app.post('/gps/upload', authMiddleware, (req, res) => {
+  const { trailUuid, lat, lon, accuracy, timestamp } = req.body
+  if (!trailUuid || lat == null || lon == null) return res.status(400).json({ error: 'Faltan datos' })
+  const ts = timestamp || Date.now()
+
+  db.prepare(`
+    INSERT INTO gps_positions (userUuid, trailUuid, lat, lon, accuracy, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(req.user.uuid, trailUuid, lat, lon, accuracy ?? null, ts)
+
+  const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(req.user.uuid)
+  io.to(`race:${trailUuid}`).emit('position_broadcast', {
+    userUuid: req.user.uuid,
+    userName: user?.nombre ?? req.user.user,
+    teamName: user?.team ?? '',
+    lat, lon, accuracy, timestamp: ts,
+    isOnline: true,
+  })
+
+  res.status(200).json({ ok: true })
 })
 
 // ─── Socket.IO ────────────────────────────────────────────────────────────────

@@ -53,6 +53,13 @@ export interface LivePosition {
   lon: number
   timestamp: number
   accuracy?: number
+  isOnline: boolean
+}
+
+export interface RaceSession {
+  sessionUuid: string
+  startTime: number
+  runnerCount: number
 }
 
 export interface AuthResponse {

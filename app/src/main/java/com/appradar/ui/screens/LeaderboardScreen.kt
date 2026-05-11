@@ -28,7 +28,7 @@ fun LeaderboardScreen(
     LaunchedEffect(Unit) {
         while(true) {
             viewModel.refreshRankings(trailUuid, teamUuid)
-            delay(1200000) // 20 minutes
+            delay(30_000)
         }
     }
 

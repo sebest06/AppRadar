@@ -61,8 +61,16 @@ export const trailsApi = {
 
 // Rankings
 export const rankingsApi = {
-  get: (trailUuid: string, teamUuid?: string) =>
+  get: (trailUuid: string, options?: { teamUuid?: string; sessionUuid?: string }) =>
     api.get<import('../types').RankingEntry[]>('/rankings', {
-      params: { trailUuid, teamUuid },
+      params: { trailUuid, ...options },
     }),
+}
+
+// Race sessions & live positions
+export const racesApi = {
+  sessions: (trailUuid: string) =>
+    api.get<import('../types').RaceSession[]>('/races/sessions', { params: { trailUuid } }),
+  livePositions: (trailUuid: string, sessionUuid?: string) =>
+    api.get<import('../types').LivePosition[]>('/races/live', { params: { trailUuid, sessionUuid } }),
 }

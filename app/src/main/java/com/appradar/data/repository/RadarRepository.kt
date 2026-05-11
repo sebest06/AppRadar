@@ -90,6 +90,18 @@ class RadarRepository @Inject constructor(
         } catch (e: Exception) {}
     }
 
+    suspend fun uploadGpsPosition(trailUuid: String, lat: Double, lon: Double, accuracy: Float) {
+        try {
+            apiService.uploadGpsPosition(mapOf(
+                "trailUuid" to trailUuid,
+                "lat" to lat,
+                "lon" to lon,
+                "accuracy" to accuracy,
+                "timestamp" to System.currentTimeMillis()
+            ))
+        } catch (_: Exception) {}
+    }
+
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
         return try {
             val response = apiService.getRankings(trailUuid, teamUuid)
