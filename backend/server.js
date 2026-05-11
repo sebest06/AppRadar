@@ -93,15 +93,21 @@ db.exec(`
   );
 `)
 
+try { db.exec(`ALTER TABLE users ADD COLUMN teamStatus TEXT DEFAULT 'accepted'`) } catch (e) { /* ignores if exists */ }
+try { db.exec(`ALTER TABLE trails ADD COLUMN teamUuid TEXT DEFAULT NULL`) } catch (e) { /* ignores if exists */ }
+
 // Seed admin user if not exists
 const adminExists = db.prepare('SELECT 1 FROM users WHERE user = ?').get('admin')
 if (!adminExists) {
   const hash = bcrypt.hashSync('1234', 10)
   db.prepare(`
-    INSERT INTO users (uuid, user, passw, nombre, team, uuid_team, role)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(uuidv4(), 'admin', hash, 'Admin User', 'Team Alpha', uuidv4(), 'organizer')
-  console.log('Admin seed: usuario=admin, contraseña=1234')
+    INSERT INTO users (uuid, user, passw, nombre, team, uuid_team, role, teamStatus)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(uuidv4(), 'admin', hash, 'Admin User', 'Team Alpha', uuidv4(), 'superuser', 'accepted')
+  console.log('Admin seed: usuario=admin, contraseña=1234, rol=superuser')
+} else {
+  // Ensure admin is superuser
+  db.prepare(`UPDATE users SET role = 'superuser' WHERE user = 'admin'`).run()
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
@@ -129,10 +135,32 @@ function requireRole(...roles) {
   }
 }
 
+// ─── Teams (Organizers) ────────────────────────────────────────────────────────
+
+app.get('/teams', (req, res) => {
+  const teams = db.prepare(`SELECT DISTINCT uuid_team, team FROM users WHERE role = 'organizer'`).all()
+  res.json(teams)
+})
+
+app.get('/team/requests', authMiddleware, requireRole('organizer'), (req, res) => {
+  const requests = db.prepare(`SELECT uuid, user, nombre, team, role, teamStatus FROM users WHERE uuid_team = ? AND teamStatus = 'pending'`).all(req.user.uuid_team)
+  res.json(requests)
+})
+
+app.post('/team/requests/:userUuid/accept', authMiddleware, requireRole('organizer'), (req, res) => {
+  db.prepare(`UPDATE users SET teamStatus = 'accepted' WHERE uuid = ? AND uuid_team = ?`).run(req.params.userUuid, req.user.uuid_team)
+  res.json({ ok: true })
+})
+
+app.post('/team/requests/:userUuid/reject', authMiddleware, requireRole('organizer'), (req, res) => {
+  db.prepare(`UPDATE users SET teamStatus = 'rejected' WHERE uuid = ? AND uuid_team = ?`).run(req.params.userUuid, req.user.uuid_team)
+  res.json({ ok: true })
+})
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 app.post('/auth/register', (req, res) => {
-  const { user, passw, nombre, team, role } = req.body
+  const { user, passw, nombre, team, role, uuid_team: inputTeamUuid } = req.body
   if (!user || !passw || !nombre) return res.status(400).json({ error: 'Faltan campos requeridos' })
   if (passw.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
 
@@ -140,17 +168,29 @@ app.post('/auth/register', (req, res) => {
   if (existing) return res.status(409).json({ error: 'El usuario ya existe' })
 
   const uuid = uuidv4()
-  const uuid_team = uuidv4()
   const hash = bcrypt.hashSync(passw, 10)
   const userRole = ['runner', 'organizer', 'spectator'].includes(role) ? role : 'runner'
+  
+  let finalTeamUuid = uuidv4()
+  let finalTeamName = team || ''
+  let teamStatus = 'accepted'
+
+  if (userRole === 'runner') {
+    if (!inputTeamUuid) return res.status(400).json({ error: 'Debes seleccionar un equipo' })
+    const org = db.prepare(`SELECT team FROM users WHERE uuid_team = ? AND role = 'organizer' LIMIT 1`).get(inputTeamUuid)
+    if (!org) return res.status(404).json({ error: 'Equipo no encontrado' })
+    finalTeamUuid = inputTeamUuid
+    finalTeamName = org.team
+    teamStatus = 'pending'
+  }
 
   db.prepare(`
-    INSERT INTO users (uuid, user, passw, nombre, team, uuid_team, role)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(uuid, user, hash, nombre, team || '', uuid_team, userRole)
+    INSERT INTO users (uuid, user, passw, nombre, team, uuid_team, role, teamStatus)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(uuid, user, hash, nombre, finalTeamName, finalTeamUuid, userRole, teamStatus)
 
-  const newUser = { uuid, user, nombre, team: team || '', uuid_team, role: userRole }
-  const token = jwt.sign({ uuid, user, role: userRole }, JWT_SECRET, { expiresIn: '7d' })
+  const newUser = { uuid, user, nombre, team: finalTeamName, uuid_team: finalTeamUuid, role: userRole, teamStatus }
+  const token = jwt.sign({ uuid, user, role: userRole, uuid_team: finalTeamUuid, teamStatus }, JWT_SECRET, { expiresIn: '7d' })
   res.status(201).json({ token, user: newUser })
 })
 
@@ -161,7 +201,7 @@ app.post('/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Credenciales incorrectas' })
   }
   const { passw: _p, ...safeUser } = found
-  const token = jwt.sign({ uuid: found.uuid, user: found.user, role: found.role }, JWT_SECRET, {
+  const token = jwt.sign({ uuid: found.uuid, user: found.user, role: found.role, uuid_team: found.uuid_team, teamStatus: found.teamStatus }, JWT_SECRET, {
     expiresIn: '7d',
   })
   res.json({ token, user: safeUser })
@@ -170,7 +210,23 @@ app.post('/auth/login', (req, res) => {
 // ─── Trails ───────────────────────────────────────────────────────────────────
 
 app.get('/trails', (req, res) => {
-  const trails = db.prepare('SELECT * FROM trails ORDER BY rowid DESC').all()
+  const header = req.headers.authorization
+  let user = null
+  if (header?.startsWith('Bearer ')) {
+    try { user = jwt.verify(header.slice(7), JWT_SECRET) } catch {}
+  }
+
+  let trails = []
+  if (!user) {
+    trails = db.prepare('SELECT * FROM trails WHERE teamUuid IS NULL ORDER BY rowid DESC').all()
+  } else if (user.role === 'superuser') {
+    trails = db.prepare('SELECT * FROM trails ORDER BY rowid DESC').all()
+  } else if (user.role === 'organizer' || user.teamStatus === 'accepted') {
+    trails = db.prepare('SELECT * FROM trails WHERE teamUuid IS NULL OR teamUuid = ? ORDER BY rowid DESC').all(user.uuid_team)
+  } else {
+    trails = db.prepare('SELECT * FROM trails WHERE teamUuid IS NULL ORDER BY rowid DESC').all()
+  }
+  
   res.json(trails.map(t => ({ ...t, isActive: !!t.isActive })))
 })
 
@@ -183,16 +239,18 @@ app.get('/trails/:trailId/details', (req, res) => {
   res.json({ ...trail, isActive: !!trail.isActive, waypoints })
 })
 
-app.post('/trails', authMiddleware, requireRole('organizer'), (req, res) => {
+app.post('/trails', authMiddleware, requireRole('organizer', 'superuser'), (req, res) => {
   const { name, description, distanceKm, elevationM, maxSkip, waypoints } = req.body
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!waypoints?.length) return res.status(400).json({ error: 'Se requieren waypoints' })
 
   const trailUuid = uuidv4()
+  const teamUuid = req.user.role === 'superuser' ? null : req.user.uuid_team
+
   db.prepare(`
-    INSERT INTO trails (trailUuid, name, description, distanceKm, elevationM, maxSkip, createdBy)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(trailUuid, name, description || '', distanceKm || 0, elevationM || 0, maxSkip ?? 1, req.user.uuid)
+    INSERT INTO trails (trailUuid, name, description, distanceKm, elevationM, maxSkip, createdBy, teamUuid)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(trailUuid, name, description || '', distanceKm || 0, elevationM || 0, maxSkip ?? 1, req.user.uuid, teamUuid)
 
   const insertWp = db.prepare(`
     INSERT INTO waypoints (waypointUuid, trailUuid, "order", name, lat, lon, radius)
@@ -206,10 +264,10 @@ app.post('/trails', authMiddleware, requireRole('organizer'), (req, res) => {
   res.status(201).json({ ...trail, isActive: false })
 })
 
-app.put('/trails/:trailId', authMiddleware, requireRole('organizer'), (req, res) => {
+app.put('/trails/:trailId', authMiddleware, requireRole('organizer', 'superuser'), (req, res) => {
   const trail = db.prepare('SELECT * FROM trails WHERE trailUuid = ?').get(req.params.trailId)
   if (!trail) return res.status(404).json({ error: 'Carrera no encontrada' })
-  if (trail.createdBy !== req.user.uuid) return res.status(403).json({ error: 'Sin permiso' })
+  if (req.user.role !== 'superuser' && trail.createdBy !== req.user.uuid) return res.status(403).json({ error: 'Sin permiso' })
 
   const { name, description, distanceKm, elevationM, maxSkip } = req.body
   db.prepare(`
@@ -227,15 +285,18 @@ app.put('/trails/:trailId', authMiddleware, requireRole('organizer'), (req, res)
   res.json({ ...updated, isActive: !!updated.isActive })
 })
 
-app.delete('/trails/:trailId', authMiddleware, requireRole('organizer'), (req, res) => {
+app.delete('/trails/:trailId', authMiddleware, requireRole('organizer', 'superuser'), (req, res) => {
   const trail = db.prepare('SELECT * FROM trails WHERE trailUuid = ?').get(req.params.trailId)
   if (!trail) return res.status(404).json({ error: 'Carrera no encontrada' })
-  if (trail.createdBy !== req.user.uuid) return res.status(403).json({ error: 'Sin permiso' })
+  if (req.user.role !== 'superuser' && trail.createdBy !== req.user.uuid) return res.status(403).json({ error: 'Sin permiso' })
   db.prepare('DELETE FROM trails WHERE trailUuid = ?').run(req.params.trailId)
   res.status(204).end()
 })
 
-app.post('/trails/:trailId/activate', authMiddleware, requireRole('organizer'), (req, res) => {
+app.post('/trails/:trailId/activate', authMiddleware, requireRole('organizer', 'superuser'), (req, res) => {
+  const trail = db.prepare('SELECT * FROM trails WHERE trailUuid = ?').get(req.params.trailId)
+  if (!trail) return res.status(404).json({ error: 'Carrera no encontrada' })
+  if (req.user.role !== 'superuser' && trail.createdBy !== req.user.uuid) return res.status(403).json({ error: 'Sin permiso' })
   db.prepare('UPDATE trails SET isActive = 1 WHERE trailUuid = ?').run(req.params.trailId)
   res.json({ ok: true })
 })
