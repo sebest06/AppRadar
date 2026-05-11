@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Read(//usr/local/bin/**)",
+      "Read(//home/sebest/.nvm/alias/**)",
+      "Read(//home/sebest/.nvm/**)",
+      "Read(//usr/lib/node_modules/**)",
+      "Read(//usr/local/lib/**)",
+      "Bash(export PATH=\"/home/sebest/Programas/node/node-v24.15.0-linux-x64/bin:$PATH\")",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(npx tailwindcss *)",
+      "Bash(node -e \"require\\('./server.js'\\)\")",
+      "Bash(curl -s http://localhost:3000/trails)",
+      "Bash(kill %1)",
+      "Bash(curl -s -X POST http://localhost:3000/auth/register -H 'Content-Type: application/json' -d '{\"user\":\"juan\",\"passw\":\"123456\",\"nombre\":\"Juan Pérez\",\"team\":\"Los Cóndores\",\"role\":\"runner\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(npm run *)",
+      "Bash(node server.js)",
+      "Bash(echo \"Backend PID: $!\")",
+      "Bash(curl -s -X POST http://localhost:3000/auth/login -H 'Content-Type: application/json' -d '{\"user\":\"admin\",\"passw\":\"1234\"}')",
+      "Bash(curl -s http://localhost:5173)"
+    ]
+  }
+}
