@@ -48,6 +48,7 @@ class TrackingService : Service() {
     private val reachedWaypoints = mutableSetOf<String>()
     private var maxSkip = 1
     private var lastGpsUploadMs = 0L
+    private var dataJob: kotlinx.coroutines.Job? = null
 
     companion object {
         const val EXTRA_TRAIL_UUID = "trailUuid"
@@ -61,10 +62,14 @@ class TrackingService : Service() {
         private const val TRACKING_NOTIFICATION_ID = 1
         private const val RANKING_NOTIFICATION_ID = 2
         private const val RANKING_POLL_MS = 30_000L
+
+        var isServiceRunning = false
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
+        isServiceRunning = true
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -74,33 +79,38 @@ class TrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        trailUuid = intent?.getStringExtra(EXTRA_TRAIL_UUID) ?: ""
-        teamUuid  = intent?.getStringExtra(EXTRA_TEAM_UUID)  ?: ""
-        userUuid  = intent?.getStringExtra(EXTRA_USER_UUID)  ?: ""
-        runUuid   = intent?.getStringExtra(EXTRA_RUN_UUID)   ?: ""
-        maxSkip   = intent?.getIntExtra(EXTRA_MAX_SKIP, 1)   ?: 1
+        val newRunUuid = intent?.getStringExtra(EXTRA_RUN_UUID) ?: ""
+        
+        if (newRunUuid.isNotEmpty() && newRunUuid != runUuid) {
+            trailUuid = intent?.getStringExtra(EXTRA_TRAIL_UUID) ?: ""
+            teamUuid  = intent?.getStringExtra(EXTRA_TEAM_UUID)  ?: ""
+            userUuid  = intent?.getStringExtra(EXTRA_USER_UUID)  ?: ""
+            runUuid   = newRunUuid
+            maxSkip   = intent?.getIntExtra(EXTRA_MAX_SKIP, 1)   ?: 1
 
-        createNotificationChannels()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                TRACKING_NOTIFICATION_ID,
-                buildTrackingNotification(),
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            )
-        } else {
-            startForeground(TRACKING_NOTIFICATION_ID, buildTrackingNotification())
-        }
-        requestLocationUpdates()
-
-        serviceScope.launch {
-            waypoints = repository.getWaypointsForTrailList(trailUuid)
-            // Cargar waypoints ya alcanzados si es una re-conexión
-            repository.getTracksForRun(runUuid).collect { tracks ->
-                reachedWaypoints.clear()
-                reachedWaypoints.addAll(tracks.map { it.waypointUuid })
+            createNotificationChannels()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    TRACKING_NOTIFICATION_ID,
+                    buildTrackingNotification(),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                )
+            } else {
+                startForeground(TRACKING_NOTIFICATION_ID, buildTrackingNotification())
             }
+            requestLocationUpdates()
+
+            dataJob?.cancel()
+            dataJob = serviceScope.launch {
+                waypoints = repository.getWaypointsForTrailList(trailUuid)
+                // Cargar waypoints ya alcanzados si es una re-conexión
+                repository.getTracksForRun(runUuid).collect { tracks ->
+                    reachedWaypoints.clear()
+                    reachedWaypoints.addAll(tracks.map { it.waypointUuid })
+                }
+            }
+            startRankingPolling()
         }
-        startRankingPolling()
 
         return START_STICKY
     }
@@ -308,6 +318,7 @@ class TrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isServiceRunning = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
         serviceScope.cancel()
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
