@@ -17,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -96,8 +98,8 @@ class WearTrackingService : Service() {
 
     private fun startRankingPolling() {
         serviceScope.launch {
-            while (kotlinx.coroutines.isActive) {
-                kotlinx.coroutines.delay(30_000L) // Poll every 30 seconds
+            while (isActive) {
+                delay(30_000L) // Poll every 30 seconds
                 fetchAndNotifyRanking()
             }
         }

@@ -51,6 +51,8 @@ class ActiveRaceViewModel @Inject constructor(
     val currentLocation: StateFlow<Location?> = _currentLocation
 
     private var currentRunUuid: String = ""
+    private var currentSessionUuid: String? = null
+    private var initialStartTimeMillis: Long = 0L
     private var lastStartTimeMillis: Long = 0L
     private var accumulatedTimeMillis: Long = 0L
     private var timerJob: Job? = null
@@ -82,8 +84,34 @@ class ActiveRaceViewModel @Inject constructor(
         _isPaused.value = false
         _reachedWaypoints.value = emptySet()
         currentRunUuid = UUID.randomUUID().toString()
-        lastStartTimeMillis = System.currentTimeMillis()
+        initialStartTimeMillis = System.currentTimeMillis()
+        lastStartTimeMillis = initialStartTimeMillis
         accumulatedTimeMillis = 0L
+        currentSessionUuid = null
+
+        viewModelScope.launch {
+            val userUuid = userPreferences.userUuid.firstOrNull() ?: ""
+            val run = com.appradar.wear.data.local.entity.WearRaceRunEntity(
+                runUuid = currentRunUuid,
+                trailUuid = _trail.value?.trailUuid ?: "",
+                userUuid = userUuid,
+                trailName = _trail.value?.name ?: "Carrera",
+                startTime = initialStartTimeMillis,
+                isCompleted = false
+            )
+            val sessionUuid = repository.uploadRaceRun(run)
+            currentSessionUuid = sessionUuid
+
+            // Start ranking service
+            val ctx = getApplication<Application>()
+            val intent = Intent(ctx, WearTrackingService::class.java).apply {
+                putExtra(WearTrackingService.EXTRA_TRAIL_UUID, _trail.value?.trailUuid ?: "")
+                putExtra(WearTrackingService.EXTRA_USER_UUID, userUuid)
+                putExtra(WearTrackingService.EXTRA_SESSION_UUID, currentSessionUuid ?: "")
+            }
+            ctx.startForegroundService(intent)
+        }
+
         startTimer()
     }
 
@@ -94,7 +122,23 @@ class ActiveRaceViewModel @Inject constructor(
         _elapsedTimeMillis.value = finalTime
         _isRaceStarted.value = false
         _isPaused.value = false
-        viewModelScope.launch { repository.uploadUnsyncedTracks() }
+        viewModelScope.launch { 
+            repository.uploadUnsyncedTracks() 
+            
+            val userUuid = userPreferences.userUuid.firstOrNull() ?: ""
+            val run = com.appradar.wear.data.local.entity.WearRaceRunEntity(
+                runUuid = currentRunUuid,
+                trailUuid = _trail.value?.trailUuid ?: "",
+                userUuid = userUuid,
+                trailName = _trail.value?.name ?: "Carrera",
+                startTime = initialStartTimeMillis,
+                endTime = System.currentTimeMillis(),
+                totalTime = finalTime,
+                isCompleted = true,
+                sessionUuid = currentSessionUuid
+            )
+            repository.uploadRaceRun(run)
+        }
     }
 
     fun togglePause() {
@@ -153,7 +197,22 @@ class ActiveRaceViewModel @Inject constructor(
     private fun finishRace(finalTime: Long) {
         timerJob?.cancel()
         _isRaceStarted.value = false
-        viewModelScope.launch { repository.uploadUnsyncedTracks() }
+        viewModelScope.launch { 
+            repository.uploadUnsyncedTracks() 
+            val userUuid = userPreferences.userUuid.firstOrNull() ?: ""
+            val run = com.appradar.wear.data.local.entity.WearRaceRunEntity(
+                runUuid = currentRunUuid,
+                trailUuid = _trail.value?.trailUuid ?: "",
+                userUuid = userUuid,
+                trailName = _trail.value?.name ?: "Carrera",
+                startTime = initialStartTimeMillis,
+                endTime = System.currentTimeMillis(),
+                totalTime = finalTime,
+                isCompleted = true,
+                sessionUuid = currentSessionUuid
+            )
+            repository.uploadRaceRun(run)
+        }
     }
 
     private fun saveWaypointReached(waypointUuid: String, timeFromStart: Long) {
