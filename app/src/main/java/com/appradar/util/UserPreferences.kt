@@ -15,6 +15,10 @@ class UserPreferences(private val context: Context) {
         val USER_ICON_KEY = stringPreferencesKey("user_icon")
         val API_URL_KEY = stringPreferencesKey("api_url")
         val AUTH_TOKEN_KEY = stringPreferencesKey("auth_token")
+        val ACTIVE_TRAIL_UUID_KEY = stringPreferencesKey("active_trail_uuid")
+        val ACTIVE_RUN_UUID_KEY = stringPreferencesKey("active_run_uuid")
+        val ACTIVE_START_TIME_KEY = androidx.datastore.preferences.core.longPreferencesKey("active_start_time")
+        val ACTIVE_SESSION_UUID_KEY = stringPreferencesKey("active_session_uuid")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN_KEY] }
@@ -48,6 +52,28 @@ class UserPreferences(private val context: Context) {
     suspend fun setUserIcon(iconName: String) {
         context.dataStore.edit { preferences ->
             preferences[USER_ICON_KEY] = iconName
+        }
+    }
+
+    val activeTrailUuid: Flow<String?> = context.dataStore.data.map { it[ACTIVE_TRAIL_UUID_KEY] }
+    val activeRunUuid: Flow<String?> = context.dataStore.data.map { it[ACTIVE_RUN_UUID_KEY] }
+    val activeStartTime: Flow<Long> = context.dataStore.data.map { it[ACTIVE_START_TIME_KEY] ?: 0L }
+    val activeSessionUuid: Flow<String?> = context.dataStore.data.map { it[ACTIVE_SESSION_UUID_KEY] }
+
+    suspend fun setActiveRace(trailUuid: String?, runUuid: String?, startTime: Long, sessionUuid: String?) {
+        context.dataStore.edit { prefs ->
+            if (trailUuid == null) {
+                prefs.remove(ACTIVE_TRAIL_UUID_KEY)
+                prefs.remove(ACTIVE_RUN_UUID_KEY)
+                prefs.remove(ACTIVE_START_TIME_KEY)
+                prefs.remove(ACTIVE_SESSION_UUID_KEY)
+            } else {
+                prefs[ACTIVE_TRAIL_UUID_KEY] = trailUuid
+                prefs[ACTIVE_RUN_UUID_KEY] = runUuid ?: ""
+                prefs[ACTIVE_START_TIME_KEY] = startTime
+                if (sessionUuid != null) prefs[ACTIVE_SESSION_UUID_KEY] = sessionUuid
+                else prefs.remove(ACTIVE_SESSION_UUID_KEY)
+            }
         }
     }
 }

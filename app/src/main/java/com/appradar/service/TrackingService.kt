@@ -81,11 +81,24 @@ class TrackingService : Service() {
         maxSkip   = intent?.getIntExtra(EXTRA_MAX_SKIP, 1)   ?: 1
 
         createNotificationChannels()
-        startForeground(TRACKING_NOTIFICATION_ID, buildTrackingNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                TRACKING_NOTIFICATION_ID,
+                buildTrackingNotification(),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            )
+        } else {
+            startForeground(TRACKING_NOTIFICATION_ID, buildTrackingNotification())
+        }
         requestLocationUpdates()
 
         serviceScope.launch {
             waypoints = repository.getWaypointsForTrailList(trailUuid)
+            // Cargar waypoints ya alcanzados si es una re-conexión
+            repository.getTracksForRun(runUuid).collect { tracks ->
+                reachedWaypoints.clear()
+                reachedWaypoints.addAll(tracks.map { it.waypointUuid })
+            }
         }
         startRankingPolling()
 

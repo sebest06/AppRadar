@@ -10,9 +10,12 @@ import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
+import com.appradar.wear.data.repository.WearRepository
 import com.google.android.gms.location.*
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,8 +30,8 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class WearTrackingService : Service() {
 
-    @javax.inject.Inject
-    lateinit var repository: com.appradar.wear.data.repository.WearRepository
+    @Inject
+    lateinit var repository: WearRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -41,6 +44,7 @@ class WearTrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isServiceRunning = true
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -52,12 +56,25 @@ class WearTrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        trailUuid = intent?.getStringExtra(EXTRA_TRAIL_UUID) ?: ""
-        userUuid = intent?.getStringExtra(EXTRA_USER_UUID) ?: ""
-        sessionUuid = intent?.getStringExtra(EXTRA_SESSION_UUID) ?: ""
+        val newTrailUuid = intent?.getStringExtra(EXTRA_TRAIL_UUID) ?: ""
+        if (newTrailUuid.isNotEmpty()) {
+            trailUuid = newTrailUuid
+            userUuid = intent?.getStringExtra(EXTRA_USER_UUID) ?: ""
+            sessionUuid = intent?.getStringExtra(EXTRA_SESSION_UUID) ?: ""
+            WearTrackingService.startTimeMillis = intent?.getLongExtra(EXTRA_START_TIME, System.currentTimeMillis()) ?: System.currentTimeMillis()
+            activeTrailUuid = trailUuid
+        }
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                createNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
         requestLocationUpdates()
 
         if (trailUuid.isNotEmpty() && userUuid.isNotEmpty()) {
@@ -137,6 +154,8 @@ class WearTrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isServiceRunning = false
+        activeTrailUuid = null
         fusedLocationClient.removeLocationUpdates(locationCallback)
         serviceScope.cancel()
     }
@@ -145,6 +164,16 @@ class WearTrackingService : Service() {
         const val EXTRA_TRAIL_UUID = "trailUuid"
         const val EXTRA_USER_UUID = "userUuid"
         const val EXTRA_SESSION_UUID = "sessionUuid"
+        const val EXTRA_START_TIME = "startTime"
+
+        var isServiceRunning = false
+            private set
+
+        var activeTrailUuid: String? = null
+            private set
+
+        var startTimeMillis: Long = 0L
+            private set
 
         private const val CHANNEL_ID = "WearTrackingChannel"
         private const val RANKING_CHANNEL_ID = "WearRankingChannel"

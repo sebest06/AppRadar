@@ -11,7 +11,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class TrailListViewModel @Inject constructor(
-    private val repository: WearRepository
+    private val repository: WearRepository,
+    private val userPreferences: com.appradar.wear.util.WearUserPreferences
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
@@ -19,6 +20,9 @@ class TrailListViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
+
+    val activeTrailUuid: StateFlow<String?> = userPreferences.activeTrailUuid
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val trails: StateFlow<List<WearTrailEntity>> = repository.getAllTrails()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

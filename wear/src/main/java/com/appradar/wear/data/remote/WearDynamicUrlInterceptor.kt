@@ -13,11 +13,18 @@ class WearDynamicUrlInterceptor @Inject constructor(
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        val (baseUrl, token) = runBlocking {
-            userPreferences.apiUrl.first() to userPreferences.authToken.first()
+        val (baseUrl, token) = try {
+            runBlocking {
+                userPreferences.apiUrl.first() to userPreferences.authToken.first()
+            }
+        } catch (e: Exception) {
+            "http://localhost:3000/" to null
         }
 
-        val newUrl = chain.request().url.newBuilder().apply {
+        val originalRequest = chain.request()
+        val originalUrl = originalRequest.url
+        
+        val newUrl = originalUrl.newBuilder().apply {
             baseUrl.toHttpUrlOrNull()?.let { parsed ->
                 scheme(parsed.scheme)
                 host(parsed.host)
@@ -25,9 +32,11 @@ class WearDynamicUrlInterceptor @Inject constructor(
             }
         }.build()
 
-        val request = chain.request().newBuilder().url(newUrl).apply {
-            token?.let { header("Authorization", "Bearer $it") }
-        }.build()
+        val request = originalRequest.newBuilder()
+            .url(newUrl)
+            .apply {
+                token?.let { header("Authorization", "Bearer $it") }
+            }.build()
 
         return chain.proceed(request)
     }

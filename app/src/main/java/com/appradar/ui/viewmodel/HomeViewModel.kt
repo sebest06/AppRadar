@@ -14,12 +14,15 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: RadarRepository
+    private val repository: RadarRepository,
+    private val userPreferences: com.appradar.util.UserPreferences
 ) : ViewModel() {
     val allTrails: Flow<List<TrailEntity>> = repository.getAllTrails()
 
     private val _currentUser = MutableStateFlow<UserEntity?>(null)
     val currentUser: StateFlow<UserEntity?> = _currentUser
+
+    val activeTrailUuid: Flow<String?> = userPreferences.activeTrailUuid
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing

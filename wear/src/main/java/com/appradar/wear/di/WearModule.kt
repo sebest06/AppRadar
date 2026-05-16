@@ -13,6 +13,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
@@ -39,10 +40,17 @@ object WearModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(interceptor: WearDynamicUrlInterceptor): OkHttpClient =
-        OkHttpClient.Builder()
+    fun provideOkHttpClient(
+        interceptor: WearDynamicUrlInterceptor
+    ): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+        return OkHttpClient.Builder()
             .addInterceptor(interceptor)
+            .addInterceptor(logging)
             .build()
+    }
 
     @Provides
     @Singleton

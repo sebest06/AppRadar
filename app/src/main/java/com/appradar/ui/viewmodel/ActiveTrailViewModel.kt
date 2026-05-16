@@ -77,6 +77,26 @@ class ActiveTrailViewModel @Inject constructor(
                 _pathPoints.value = it
             }
         }
+        
+        // Recuperar estado de carrera persistente
+        viewModelScope.launch {
+            val savedTrailUuid = userPreferences.activeTrailUuid.first()
+            if (savedTrailUuid == trailUuid) {
+                _isRaceStarted.value = true
+                currentRunUuid = userPreferences.activeRunUuid.first() ?: ""
+                initialStartTimeMillis = userPreferences.activeStartTime.first()
+                currentSessionUuid = userPreferences.activeSessionUuid.first()
+                lastStartTimeMillis = initialStartTimeMillis
+                accumulatedTimeMillis = 0L
+                
+                // Recuperar waypoints ya alcanzados para esta carrera
+                repository.getTracksForRun(currentRunUuid).collect { tracks ->
+                    _reachedWaypoints.value = tracks.map { it.waypointUuid }.toSet()
+                }
+                
+                startTimer()
+            }
+        }
     }
 
     fun startRace() {
@@ -91,6 +111,10 @@ class ActiveTrailViewModel @Inject constructor(
         accumulatedTimeMillis = 0L
         currentSessionUuid = null
 
+        viewModelScope.launch {
+            userPreferences.setActiveRace(_trail.value?.trailUuid, currentRunUuid, initialStartTimeMillis, null)
+        }
+
         saveRaceRun(isCompleted = false)
         startTimer()
         startTrackingService()
@@ -104,6 +128,10 @@ class ActiveTrailViewModel @Inject constructor(
         _elapsedTimeMillis.value = finalTime
         _isRaceStarted.value = false
         _isPaused.value = false
+
+        viewModelScope.launch {
+            userPreferences.setActiveRace(null, null, 0, null)
+        }
 
         saveRaceRun(isCompleted = _reachedWaypoints.value.size == _waypoints.value.size, totalTime = finalTime)
         context.stopService(Intent(context, TrackingService::class.java))
@@ -194,7 +222,11 @@ class ActiveTrailViewModel @Inject constructor(
     private fun finishRace(finalTime: Long) {
         timerJob?.cancel()
         _isRaceStarted.value = false // Could keep it true but set a "finished" state
+        viewModelScope.launch {
+            userPreferences.setActiveRace(null, null, 0, null)
+        }
         saveRaceRun(isCompleted = true, totalTime = finalTime)
+        context.stopService(Intent(context, TrackingService::class.java))
     }
 
     private fun saveRaceRun(isCompleted: Boolean, totalTime: Long = 0L) {
@@ -217,6 +249,7 @@ class ActiveTrailViewModel @Inject constructor(
                 if (sessionUuid != null) {
                     currentSessionUuid = sessionUuid
                     repository.saveRaceRun(run.copy(sessionUuid = sessionUuid))
+                    userPreferences.setActiveRace(_trail.value?.trailUuid, currentRunUuid, initialStartTimeMillis, sessionUuid)
                 }
             } else if (isCompleted) {
                 repository.uploadRaceRun(run)

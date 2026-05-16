@@ -26,6 +26,7 @@ fun HomeScreen(
     val trails by viewModel.allTrails.collectAsState(initial = emptyList())
     val currentUser by viewModel.currentUser.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val activeTrailUuid by viewModel.activeTrailUuid.collectAsState(initial = null)
 
     Scaffold(
         topBar = {
@@ -70,7 +71,43 @@ fun HomeScreen(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
 
-            if (trails.isEmpty()) {
+            activeTrailUuid?.let { uuid ->
+                Card(
+                    onClick = { navController.navigate(Screen.ActiveTrail.createRoute(uuid)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Carrera en curso",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "Toca para reanudar",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (trails.isEmpty() && activeTrailUuid == null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No hay carreras guardadas. ¡Crea una!")
                 }

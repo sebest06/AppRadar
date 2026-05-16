@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.res.painterResource
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -23,6 +24,7 @@ fun TrailListScreen(
     val trails by viewModel.trails.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val activeTrailUuid by viewModel.activeTrailUuid.collectAsState()
     val listState = rememberScalingLazyListState()
 
     Scaffold(
@@ -44,6 +46,22 @@ fun TrailListScreen(
                     textAlign = TextAlign.Center
                 )
             }
+
+            activeTrailUuid?.let { uuid ->
+                item {
+                    Chip(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        onClick = { onNavigateToRace(uuid) },
+                        label = { Text("Carrera en curso") },
+                        colors = ChipDefaults.gradientBackgroundChipColors(
+                            startBackgroundColor = MaterialTheme.colors.primary,
+                            endBackgroundColor = MaterialTheme.colors.secondary
+                        ),
+                        icon = { Icon(painterResource(android.R.drawable.ic_media_play), contentDescription = null) }
+                    )
+                }
+            }
+
             when {
                 isLoading -> item {
                     CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))

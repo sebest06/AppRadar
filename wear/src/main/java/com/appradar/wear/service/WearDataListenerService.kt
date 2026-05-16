@@ -49,11 +49,15 @@ class WearDataListenerService : WearableListenerService() {
                         val trailsJson = dataMap.getString("trails_json") ?: return@forEach
                         val waypointsJson = dataMap.getString("waypoints_json") ?: return@forEach
                         serviceScope.launch {
-                            val trailType = object : TypeToken<List<WearTrailEntity>>() {}.type
-                            val waypointType = object : TypeToken<List<WearWaypointEntity>>() {}.type
-                            val trails: List<WearTrailEntity> = gson.fromJson(trailsJson, trailType)
-                            val waypoints: List<WearWaypointEntity> = gson.fromJson(waypointsJson, waypointType)
-                            repository.saveTrailsFromPhone(trails, waypoints)
+                            try {
+                                val trailType = object : TypeToken<List<WearTrailEntity>>() {}.type
+                                val waypointType = object : TypeToken<List<WearWaypointEntity>>() {}.type
+                                val trails: List<WearTrailEntity> = gson.fromJson(trailsJson, trailType)
+                                val waypoints: List<WearWaypointEntity> = gson.fromJson(waypointsJson, waypointType)
+                                repository.saveTrailsFromPhone(trails, waypoints)
+                            } catch (e: Exception) {
+                                // Error al parsear datos del teléfono
+                            }
                         }
                     }
                 }
