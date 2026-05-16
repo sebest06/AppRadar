@@ -19,6 +19,16 @@ interface WearApiService {
 
     @POST("tracks/upload")
     suspend fun uploadTracks(@Body tracks: List<WearTrackEntity>): Response<Unit>
+
+    @POST("runs/upload")
+    suspend fun uploadRaceRun(@Body run: com.appradar.wear.data.local.entity.WearRaceRunEntity): Response<WearUploadRunResponse>
+
+    @GET("rankings")
+    suspend fun getRankings(
+        @Query("trailUuid") trailUuid: String,
+        @Query("teamUuid") teamUuid: String? = null,
+        @Query("sessionUuid") sessionUuid: String? = null
+    ): Response<List<WearRankingEntry>>
 }
 
 data class WearLoginResponse(
@@ -35,4 +45,19 @@ data class WearTrailDetailsResponse(
     val maxSkip: Int = 1,
     val isActive: Boolean = false,
     val waypoints: List<WearWaypointEntity>
+)
+
+data class WearUploadRunResponse(
+    val ok: Boolean,
+    val sessionUuid: String? = null
+)
+
+data class WearRankingEntry(
+    val userUuid: String,
+    val userName: String,
+    val waypointsReached: Int,
+    val totalWaypoints: Int,
+    val lastWaypointTime: Long,
+    val totalTime: Long,
+    val isCompleted: Boolean
 )

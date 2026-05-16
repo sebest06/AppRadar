@@ -52,4 +52,22 @@ class WearRepository @Inject constructor(
             }
         }
     }
+    suspend fun uploadRaceRun(run: com.appradar.wear.data.local.entity.WearRaceRunEntity): String? {
+        try {
+            val response = apiService.uploadRaceRun(run)
+            if (response.isSuccessful) {
+                return response.body()?.sessionUuid
+            }
+        } catch (e: Exception) {}
+        return null
+    }
+
+    suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.wear.data.remote.WearRankingEntry> {
+        return try {
+            val response = apiService.getRankings(trailUuid, teamUuid, sessionUuid)
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
