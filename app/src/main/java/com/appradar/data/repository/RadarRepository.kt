@@ -84,10 +84,14 @@ class RadarRepository @Inject constructor(
         } catch (e: Exception) {}
     }
 
-    suspend fun uploadRaceRun(run: RaceRunEntity) {
+    suspend fun uploadRaceRun(run: RaceRunEntity): String? {
         try {
-            apiService.uploadRaceRun(run)
+            val response = apiService.uploadRaceRun(run)
+            if (response.isSuccessful) {
+                return response.body()?.sessionUuid
+            }
         } catch (e: Exception) {}
+        return null
     }
 
     suspend fun uploadGpsPosition(trailUuid: String, lat: Double, lon: Double, accuracy: Float) {
@@ -102,9 +106,9 @@ class RadarRepository @Inject constructor(
         } catch (_: Exception) {}
     }
 
-    suspend fun getRankings(trailUuid: String, teamUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
+    suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
         return try {
-            val response = apiService.getRankings(trailUuid, teamUuid)
+            val response = apiService.getRankings(trailUuid, teamUuid, sessionUuid)
             if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -144,6 +148,10 @@ class RadarRepository @Inject constructor(
 
     fun getAllRaceRuns(): Flow<List<RaceRunEntity>> {
         return radarDao.getAllRaceRuns()
+    }
+
+    suspend fun getRaceRunById(runUuid: String): RaceRunEntity? {
+        return radarDao.getRaceRunById(runUuid)
     }
 
     fun getTracksForRun(runUuid: String): Flow<List<TrackEntity>> {

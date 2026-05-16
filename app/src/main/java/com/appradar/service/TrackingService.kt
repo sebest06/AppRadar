@@ -160,9 +160,11 @@ class TrackingService : Service() {
     }
 
     private suspend fun fetchAndNotifyRanking() {
-        if (trailUuid.isEmpty() || userUuid.isEmpty()) return
+        if (trailUuid.isEmpty() || userUuid.isEmpty() || runUuid.isEmpty()) return
         try {
-            val rankings = repository.getRankings(trailUuid, teamUuid.ifEmpty { null })
+            val run = repository.getRaceRunById(runUuid)
+            val sessionUuid = run?.sessionUuid
+            val rankings = repository.getRankings(trailUuid, teamUuid.ifEmpty { null }, sessionUuid)
             if (rankings.size < 2) return
 
             val userIndex = rankings.indexOfFirst { it.userUuid == userUuid }

@@ -39,6 +39,9 @@ interface RadarDao {
     @Query("SELECT * FROM race_runs ORDER BY startTime DESC")
     fun getAllRaceRuns(): Flow<List<RaceRunEntity>>
 
+    @Query("SELECT * FROM race_runs WHERE runUuid = :runUuid LIMIT 1")
+    suspend fun getRaceRunById(runUuid: String): RaceRunEntity?
+
     @Query("SELECT * FROM tracks WHERE runUuid = :runUuid ORDER BY timestamp ASC")
     fun getTracksForRun(runUuid: String): Flow<List<TrackEntity>>
 

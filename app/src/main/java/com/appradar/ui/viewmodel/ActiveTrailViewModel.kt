@@ -58,9 +58,11 @@ class ActiveTrailViewModel @Inject constructor(
     val elapsedTimeMillis: StateFlow<Long> = _elapsedTimeMillis
 
     private var currentRunUuid: String = ""
+    private var initialStartTimeMillis: Long = 0L
     private var lastStartTimeMillis: Long = 0L
     private var accumulatedTimeMillis: Long = 0L
     private var timerJob: Job? = null
+    private var currentSessionUuid: String? = null
 
     fun loadTrail(trailUuid: String) {
         viewModelScope.launch {
@@ -84,8 +86,10 @@ class ActiveTrailViewModel @Inject constructor(
         _reachedWaypoints.value = emptySet()
         _elapsedTimeMillis.value = 0L
         currentRunUuid = UUID.randomUUID().toString()
-        lastStartTimeMillis = System.currentTimeMillis()
+        initialStartTimeMillis = System.currentTimeMillis()
+        lastStartTimeMillis = initialStartTimeMillis
         accumulatedTimeMillis = 0L
+        currentSessionUuid = null
 
         saveRaceRun(isCompleted = false)
         startTimer()
@@ -200,13 +204,21 @@ class ActiveTrailViewModel @Inject constructor(
                 trailUuid = _trail.value?.trailUuid ?: "",
                 userUuid = _currentUser.value?.uuid ?: "",
                 trailName = _trail.value?.name ?: "Carrera",
-                startTime = System.currentTimeMillis(), // Initial start
+                startTime = initialStartTimeMillis,
                 endTime = if (isCompleted) System.currentTimeMillis() else null,
                 totalTime = totalTime,
-                isCompleted = isCompleted
+                isCompleted = isCompleted,
+                sessionUuid = currentSessionUuid
             )
             repository.saveRaceRun(run)
-            if (isCompleted) {
+
+            if (!isCompleted && currentSessionUuid == null) {
+                val sessionUuid = repository.uploadRaceRun(run)
+                if (sessionUuid != null) {
+                    currentSessionUuid = sessionUuid
+                    repository.saveRaceRun(run.copy(sessionUuid = sessionUuid))
+                }
+            } else if (isCompleted) {
                 repository.uploadRaceRun(run)
             }
         }

@@ -24,7 +24,7 @@ interface RadarApiService {
     suspend fun getTrailDetails(@Path("trailId") trailId: String): Response<TrailDetailsResponse>
 
     @POST("runs/upload")
-    suspend fun uploadRaceRun(@Body run: RaceRunEntity): Response<Unit>
+    suspend fun uploadRaceRun(@Body run: RaceRunEntity): Response<UploadRunResponse>
 
     @POST("tracks/upload")
     suspend fun uploadTracks(@Body tracks: List<TrackEntity>): Response<Unit>
@@ -32,7 +32,8 @@ interface RadarApiService {
     @GET("rankings")
     suspend fun getRankings(
         @Query("trailUuid") trailUuid: String,
-        @Query("teamUuid") teamUuid: String? = null
+        @Query("teamUuid") teamUuid: String? = null,
+        @Query("sessionUuid") sessionUuid: String? = null
     ): Response<List<RankingEntry>>
 
     @POST("gps/upload")
@@ -42,6 +43,11 @@ interface RadarApiService {
 data class LoginResponse(
     val token: String,
     val user: UserEntity
+)
+
+data class UploadRunResponse(
+    val ok: Boolean,
+    val sessionUuid: String? = null
 )
 
 data class TrailDetailsResponse(
