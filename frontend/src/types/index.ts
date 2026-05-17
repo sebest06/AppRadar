@@ -43,6 +43,7 @@ export interface RankingEntry {
   lastWaypointTime: number
   totalTime: number
   isCompleted: boolean
+  isAbandoned: boolean
 }
 
 export interface LivePosition {

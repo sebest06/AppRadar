@@ -129,12 +129,15 @@ function LeaderboardPanel({
                       {r.isCompleted && (
                         <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓ Fin</span>
                       )}
+                      {r.isAbandoned && (
+                        <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">✕ Abandonó</span>
+                      )}
                     </div>
                   </div>
 
                   <div className="mt-2.5 flex items-center gap-2 text-xs text-slate-500">
                     <div className="flex-1 bg-slate-200 rounded-full h-1.5">
-                      <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      <div className={`${r.isAbandoned ? 'bg-red-400' : 'bg-green-500'} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
                     </div>
                     <span className="flex-shrink-0 font-medium">{r.waypointsReached}/{r.totalWaypoints} WP</span>
                     <span className="flex-shrink-0 font-mono">{formatTime(r.totalTime)}</span>

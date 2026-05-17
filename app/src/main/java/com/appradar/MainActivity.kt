@@ -3,10 +3,16 @@ package com.appradar
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -21,11 +27,13 @@ import com.appradar.ui.screens.LeaderboardScreen
 import com.appradar.ui.screens.LoginScreen
 import com.appradar.ui.screens.RaceHistoryScreen
 import com.appradar.ui.screens.SettingsScreen
+import com.appradar.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-// ...
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +54,17 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavGraph()
+                    val mainViewModel: MainViewModel = viewModel()
+                    val isLoggedIn by mainViewModel.isLoggedIn.collectAsState()
+
+                    if (isLoggedIn == null) {
+                        // Esperando a que DataStore cargue el estado
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        AppNavGraph(startDestination = if (isLoggedIn == true) Screen.Home.route else Screen.Login.route)
+                    }
                 }
             }
         }
@@ -54,10 +72,22 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(startDestination: String) {
     val navController = rememberNavController()
+    
+    val mainViewModel: MainViewModel = viewModel()
+    val isLoggedIn by mainViewModel.isLoggedIn.collectAsState()
 
-    NavHost(navController = navController, startDestination = Screen.Login.route) {
+    // Redirigir al login si se cierra sesión desde cualquier pantalla
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn == false) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(0)
+            }
+        }
+    }
+
+    NavHost(navController = navController, startDestination = startDestination) {
         composable(Screen.Login.route) { LoginScreen(navController) }
         composable(Screen.Home.route) { HomeScreen(navController) }
         composable(Screen.CreateRace.route) { CreateRaceScreen(navController) }

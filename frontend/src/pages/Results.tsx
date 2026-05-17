@@ -49,6 +49,26 @@ function ResultRow({ r, pos }: { r: RankingEntry; pos: number }) {
   const medals = ['🥇', '🥈', '🥉']
   const pct = r.totalWaypoints > 0 ? (r.waypointsReached / r.totalWaypoints) * 100 : 0
 
+  const getStatusBadge = () => {
+    if (r.isCompleted) {
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ Completó</span>
+    }
+    if (r.isAbandoned) {
+      return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">✕ Abandonó</span>
+    }
+    return <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">En carrera</span>
+  }
+
+  const getMobileStatusBadge = () => {
+    if (r.isCompleted) {
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓</span>
+    }
+    if (r.isAbandoned) {
+      return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">✕</span>
+    }
+    return <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">En carrera</span>
+  }
+
   return (
     <>
       {/* Desktop row */}
@@ -65,16 +85,14 @@ function ResultRow({ r, pos }: { r: RankingEntry; pos: number }) {
         <td className="px-4 py-3.5">
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-              <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+              <div className={`h-1.5 rounded-full ${r.isAbandoned ? 'bg-red-400' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
             </div>
             <span className="text-xs font-medium text-slate-500 w-14 text-right">{r.waypointsReached}/{r.totalWaypoints}</span>
           </div>
         </td>
         <td className="px-4 py-3.5 text-right font-mono text-sm text-slate-700">{formatTime(r.totalTime)}</td>
         <td className="px-4 py-3.5 text-center">
-          {r.isCompleted
-            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ Completó</span>
-            : <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">En carrera</span>}
+          {getStatusBadge()}
         </td>
       </tr>
 
@@ -90,13 +108,11 @@ function ResultRow({ r, pos }: { r: RankingEntry; pos: number }) {
                 <p className="font-bold text-slate-900 truncate">{r.userName}</p>
                 <p className="text-xs text-slate-400">{r.teamName}</p>
               </div>
-              {r.isCompleted
-                ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓</span>
-                : <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">En carrera</span>}
+              {getMobileStatusBadge()}
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                <div className={`h-1.5 rounded-full ${r.isAbandoned ? 'bg-red-400' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
               </div>
               <span className="text-xs text-slate-500">{r.waypointsReached}/{r.totalWaypoints} WP</span>
               <span className="text-xs font-mono font-semibold text-slate-700">{formatTime(r.totalTime)}</span>
