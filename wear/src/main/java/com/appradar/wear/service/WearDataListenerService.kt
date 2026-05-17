@@ -39,10 +39,12 @@ class WearDataListenerService : WearableListenerService() {
                         val apiUrl = dataMap.getString("api_url") ?: return@forEach
                         val token = dataMap.getString("auth_token")
                         val userUuid = dataMap.getString("user_uuid")
+                        val userName = dataMap.getString("user_name")
                         serviceScope.launch {
                             userPreferences.setApiUrl(apiUrl)
                             token?.let { userPreferences.setAuthToken(it) }
                             userUuid?.let { userPreferences.setUserUuid(it) }
+                            userName?.let { userPreferences.setUserName(it) }
                         }
                     }
                     "/appradar/trails" -> {

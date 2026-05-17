@@ -15,6 +15,7 @@ class WearUserPreferences(private val context: Context) {
         val API_URL_KEY = stringPreferencesKey("api_url")
         val AUTH_TOKEN_KEY = stringPreferencesKey("auth_token")
         val USER_UUID_KEY = stringPreferencesKey("user_uuid")
+        val USER_NAME_KEY = stringPreferencesKey("user_name")
         val ACTIVE_TRAIL_UUID_KEY = stringPreferencesKey("active_trail_uuid")
         val ACTIVE_START_TIME_KEY = androidx.datastore.preferences.core.longPreferencesKey("active_start_time")
     }
@@ -37,6 +38,12 @@ class WearUserPreferences(private val context: Context) {
 
     suspend fun setUserUuid(uuid: String) {
         context.wearDataStore.edit { it[USER_UUID_KEY] = uuid }
+    }
+
+    val userName: Flow<String?> = context.wearDataStore.data.map { it[USER_NAME_KEY] }
+
+    suspend fun setUserName(name: String) {
+        context.wearDataStore.edit { it[USER_NAME_KEY] = name }
     }
 
     val activeTrailUuid: Flow<String?> = context.wearDataStore.data.map { it[ACTIVE_TRAIL_UUID_KEY] }

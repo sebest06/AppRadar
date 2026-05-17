@@ -15,6 +15,7 @@ class UserPreferences(private val context: Context) {
         val USER_ICON_KEY = stringPreferencesKey("user_icon")
         val API_URL_KEY = stringPreferencesKey("api_url")
         val AUTH_TOKEN_KEY = stringPreferencesKey("auth_token")
+        val USER_UUID_KEY = stringPreferencesKey("user_uuid")
         val ACTIVE_TRAIL_UUID_KEY = stringPreferencesKey("active_trail_uuid")
         val ACTIVE_RUN_UUID_KEY = stringPreferencesKey("active_run_uuid")
         val ACTIVE_START_TIME_KEY = androidx.datastore.preferences.core.longPreferencesKey("active_start_time")
@@ -27,6 +28,15 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { preferences ->
             if (token == null) preferences.remove(AUTH_TOKEN_KEY)
             else preferences[AUTH_TOKEN_KEY] = token
+        }
+    }
+
+    val userUuid: Flow<String?> = context.dataStore.data.map { it[USER_UUID_KEY] }
+
+    suspend fun setUserUuid(uuid: String?) {
+        context.dataStore.edit { preferences ->
+            if (uuid == null) preferences.remove(USER_UUID_KEY)
+            else preferences[USER_UUID_KEY] = uuid
         }
     }
 

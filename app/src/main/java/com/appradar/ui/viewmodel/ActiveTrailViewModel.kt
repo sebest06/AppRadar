@@ -33,8 +33,8 @@ class ActiveTrailViewModel @Inject constructor(
     private val _trail = MutableStateFlow<TrailEntity?>(null)
     val trail: StateFlow<TrailEntity?> = _trail
 
-    private val _currentUser = MutableStateFlow<UserEntity?>(null)
-    val currentUser: StateFlow<UserEntity?> = _currentUser
+    val currentUser: StateFlow<UserEntity?> = repository.observeCurrentUser()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val userIconResId: StateFlow<Int> = userPreferences.userIconResId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.appradar.R.drawable.ic_user_runner)
@@ -57,6 +57,9 @@ class ActiveTrailViewModel @Inject constructor(
     private val _elapsedTimeMillis = MutableStateFlow(0L)
     val elapsedTimeMillis: StateFlow<Long> = _elapsedTimeMillis
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
     private var currentRunUuid: String = ""
     private var initialStartTimeMillis: Long = 0L
     private var lastStartTimeMillis: Long = 0L
@@ -66,7 +69,6 @@ class ActiveTrailViewModel @Inject constructor(
 
     fun loadTrail(trailUuid: String) {
         viewModelScope.launch {
-            _currentUser.value = repository.getCurrentUser()
             _trail.value = repository.getTrailById(trailUuid)
             repository.getWaypointsForTrail(trailUuid).collect {
                 _waypoints.value = it
@@ -101,23 +103,39 @@ class ActiveTrailViewModel @Inject constructor(
 
     fun startRace() {
         if (_isRaceStarted.value) return
-        _isRaceStarted.value = true
-        _isPaused.value = false
-        _reachedWaypoints.value = emptySet()
-        _elapsedTimeMillis.value = 0L
-        currentRunUuid = UUID.randomUUID().toString()
-        initialStartTimeMillis = System.currentTimeMillis()
-        lastStartTimeMillis = initialStartTimeMillis
-        accumulatedTimeMillis = 0L
-        currentSessionUuid = null
-
+        
         viewModelScope.launch {
-            userPreferences.setActiveRace(_trail.value?.trailUuid, currentRunUuid, initialStartTimeMillis, null)
-        }
+            _error.value = null
+            val trailId = _trail.value?.trailUuid ?: ""
+            val lastRun = repository.getLastRunForTrail(trailId)
+            
+            if (lastRun != null) {
+                val diff = System.currentTimeMillis() - lastRun.startTime
+                val oneHour = 3600_000L
+                if (diff < oneHour) {
+                    val remainingMs = oneHour - diff
+                    val remainingMins = (remainingMs / 60_000L).coerceAtLeast(1)
+                    _error.value = "Espera $remainingMins min para una nueva carrera."
+                    return@launch
+                }
+            }
 
-        saveRaceRun(isCompleted = false)
-        startTimer()
-        startTrackingService()
+            _isRaceStarted.value = true
+            _isPaused.value = false
+            _reachedWaypoints.value = emptySet()
+            _elapsedTimeMillis.value = 0L
+            currentRunUuid = UUID.randomUUID().toString()
+            initialStartTimeMillis = System.currentTimeMillis()
+            lastStartTimeMillis = initialStartTimeMillis
+            accumulatedTimeMillis = 0L
+            currentSessionUuid = null
+
+            userPreferences.setActiveRace(trailId, currentRunUuid, initialStartTimeMillis, null)
+
+            saveRaceRun(isCompleted = false)
+            startTimer()
+            startTrackingService()
+        }
     }
 
     fun stopRace() {
@@ -133,19 +151,20 @@ class ActiveTrailViewModel @Inject constructor(
             userPreferences.setActiveRace(null, null, 0, null)
         }
 
-        saveRaceRun(isCompleted = _reachedWaypoints.value.size == _waypoints.value.size, totalTime = finalTime)
+        saveRaceRun(isCompleted = false, isAbandoned = true, totalTime = finalTime)
         context.stopService(Intent(context, TrackingService::class.java))
     }
 
     private fun startTrackingService() {
         val trail = _trail.value ?: return
-        val user  = _currentUser.value
+        val user  = currentUser.value
         val intent = Intent(context, TrackingService::class.java).apply {
             putExtra(TrackingService.EXTRA_TRAIL_UUID, trail.trailUuid)
             putExtra(TrackingService.EXTRA_TEAM_UUID,  user?.uuid_team ?: "")
             putExtra(TrackingService.EXTRA_USER_UUID,  user?.uuid ?: "")
             putExtra(TrackingService.EXTRA_RUN_UUID,   currentRunUuid)
             putExtra(TrackingService.EXTRA_MAX_SKIP,   trail.maxSkip)
+            putExtra(TrackingService.EXTRA_START_TIME, initialStartTimeMillis)
         }
         context.startForegroundService(intent)
     }
@@ -229,22 +248,23 @@ class ActiveTrailViewModel @Inject constructor(
         context.stopService(Intent(context, TrackingService::class.java))
     }
 
-    private fun saveRaceRun(isCompleted: Boolean, totalTime: Long = 0L) {
+    private fun saveRaceRun(isCompleted: Boolean, isAbandoned: Boolean = false, totalTime: Long = 0L) {
         viewModelScope.launch {
             val run = RaceRunEntity(
                 runUuid = currentRunUuid,
                 trailUuid = _trail.value?.trailUuid ?: "",
-                userUuid = _currentUser.value?.uuid ?: "",
+                userUuid = currentUser.value?.uuid ?: "",
                 trailName = _trail.value?.name ?: "Carrera",
                 startTime = initialStartTimeMillis,
-                endTime = if (isCompleted) System.currentTimeMillis() else null,
+                endTime = if (isCompleted || isAbandoned) System.currentTimeMillis() else null,
                 totalTime = totalTime,
                 isCompleted = isCompleted,
+                isAbandoned = isAbandoned,
                 sessionUuid = currentSessionUuid
             )
             repository.saveRaceRun(run)
 
-            if (!isCompleted && currentSessionUuid == null) {
+            if (!isCompleted && !isAbandoned && currentSessionUuid == null) {
                 val sessionUuid = repository.uploadRaceRun(run)
                 if (sessionUuid != null) {
                     currentSessionUuid = sessionUuid
@@ -263,7 +283,7 @@ class ActiveTrailViewModel @Inject constructor(
                 trackUuid = UUID.randomUUID().toString(),
                 trailUuid = _trail.value?.trailUuid ?: "",
                 runUuid = currentRunUuid,
-                userUuid = _currentUser.value?.uuid ?: "",
+                userUuid = currentUser.value?.uuid ?: "",
                 waypointUuid = waypointUuid,
                 timestamp = System.currentTimeMillis(),
                 timeFromStart = timeFromStart

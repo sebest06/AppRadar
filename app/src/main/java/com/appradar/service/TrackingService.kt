@@ -44,6 +44,7 @@ class TrackingService : Service() {
     private var teamUuid = ""
     private var userUuid = ""
     private var runUuid = ""
+    private var startTimeMillis = 0L
     private var waypoints: List<WaypointEntity> = emptyList()
     private val reachedWaypoints = mutableSetOf<String>()
     private var maxSkip = 1
@@ -56,6 +57,7 @@ class TrackingService : Service() {
         const val EXTRA_USER_UUID = "userUuid"
         const val EXTRA_RUN_UUID = "runUuid"
         const val EXTRA_MAX_SKIP = "maxSkip"
+        const val EXTRA_START_TIME = "startTime"
 
         private const val TRACKING_CHANNEL_ID = "TrackingChannel"
         private const val RANKING_CHANNEL_ID = "RankingChannel"
@@ -87,6 +89,7 @@ class TrackingService : Service() {
             userUuid  = intent?.getStringExtra(EXTRA_USER_UUID)  ?: ""
             runUuid   = newRunUuid
             maxSkip   = intent?.getIntExtra(EXTRA_MAX_SKIP, 1)   ?: 1
+            startTimeMillis = intent?.getLongExtra(EXTRA_START_TIME, System.currentTimeMillis()) ?: System.currentTimeMillis()
 
             createNotificationChannels()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -159,12 +162,11 @@ class TrackingService : Service() {
                                     userUuid = userUuid,
                                     waypointUuid = wpj.waypointUuid,
                                     timestamp = now,
-                                    timeFromStart = 0L
+                                    timeFromStart = now - startTimeMillis
                                 )
                             )
                         }
                     }
-                    try { repository.uploadUnsyncedTracks() } catch (_: Exception) {}
                     break
                 }
             }

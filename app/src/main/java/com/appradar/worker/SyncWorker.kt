@@ -17,9 +17,7 @@ class SyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            repository.uploadUnsyncedTracks()
-            // Podríamos disparar la descarga de rankings aquí también
-            // o en un worker separado. 
+            repository.uploadUnsyncedData()
             Result.success()
         } catch (e: Exception) {
             Result.retry()

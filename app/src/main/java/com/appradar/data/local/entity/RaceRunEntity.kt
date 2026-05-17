@@ -13,5 +13,6 @@ data class RaceRunEntity(
     val endTime: Long? = null,
     val totalTime: Long = 0L,
     val isCompleted: Boolean = false,
+    val isAbandoned: Boolean = false,
     val sessionUuid: String? = null
 )

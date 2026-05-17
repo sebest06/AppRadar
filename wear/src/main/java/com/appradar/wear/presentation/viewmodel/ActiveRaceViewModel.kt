@@ -44,6 +44,9 @@ class ActiveRaceViewModel @Inject constructor(
     private val _elapsedTimeMillis = MutableStateFlow(0L)
     val elapsedTimeMillis: StateFlow<Long> = _elapsedTimeMillis
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
     private val _nextWaypointDistance = MutableStateFlow<Float?>(null)
     val nextWaypointDistance: StateFlow<Float?> = _nextWaypointDistance
 
@@ -93,42 +96,59 @@ class ActiveRaceViewModel @Inject constructor(
 
     fun startRace() {
         if (_isRaceStarted.value) return
-        _isRaceStarted.value = true
-        _isPaused.value = false
-        _reachedWaypoints.value = emptySet()
-        currentRunUuid = UUID.randomUUID().toString()
-        initialStartTimeMillis = System.currentTimeMillis()
-        lastStartTimeMillis = initialStartTimeMillis
-        accumulatedTimeMillis = 0L
-        currentSessionUuid = null
-
+        
         viewModelScope.launch {
+            _error.value = null
+            val trailId = _trail.value?.trailUuid ?: ""
+            val lastRun = repository.getLastRunForTrail(trailId)
+            
+            if (lastRun != null) {
+                val diff = System.currentTimeMillis() - lastRun.startTime
+                val oneHour = 3600_000L
+                if (diff < oneHour) {
+                    val remainingMs = oneHour - diff
+                    val remainingMins = (remainingMs / 60_000L).coerceAtLeast(1)
+                    _error.value = "Espera $remainingMins min"
+                    return@launch
+                }
+            }
+
+            _isRaceStarted.value = true
+            _isPaused.value = false
+            _reachedWaypoints.value = emptySet()
+            currentRunUuid = UUID.randomUUID().toString()
+            initialStartTimeMillis = System.currentTimeMillis()
+            lastStartTimeMillis = initialStartTimeMillis
+            accumulatedTimeMillis = 0L
+            currentSessionUuid = null
+
             val userUuid = userPreferences.userUuid.firstOrNull() ?: ""
-            userPreferences.setActiveRace(_trail.value?.trailUuid, initialStartTimeMillis)
+            userPreferences.setActiveRace(trailId, initialStartTimeMillis)
             
             val run = com.appradar.wear.data.local.entity.WearRaceRunEntity(
                 runUuid = currentRunUuid,
-                trailUuid = _trail.value?.trailUuid ?: "",
+                trailUuid = trailId,
                 userUuid = userUuid,
                 trailName = _trail.value?.name ?: "Carrera",
                 startTime = initialStartTimeMillis,
-                isCompleted = false
+                isCompleted = false,
+                isAbandoned = false
             )
-            val sessionUuid = repository.uploadRaceRun(run)
+            val sessionUuid = repository.saveRaceRun(run)
             currentSessionUuid = sessionUuid
 
             // Start tracking service
             val ctx = getApplication<Application>()
             val intent = Intent(ctx, WearTrackingService::class.java).apply {
-                putExtra(WearTrackingService.EXTRA_TRAIL_UUID, _trail.value?.trailUuid ?: "")
+                putExtra(WearTrackingService.EXTRA_TRAIL_UUID, trailId)
                 putExtra(WearTrackingService.EXTRA_USER_UUID, userUuid)
                 putExtra(WearTrackingService.EXTRA_SESSION_UUID, currentSessionUuid ?: "")
                 putExtra(WearTrackingService.EXTRA_START_TIME, initialStartTimeMillis)
             }
             ctx.startForegroundService(intent)
+            
+            startTimer()
         }
-
-        startTimer()
     }
 
     fun stopRace() {
@@ -145,7 +165,7 @@ class ActiveRaceViewModel @Inject constructor(
 
         viewModelScope.launch { 
             userPreferences.setActiveRace(null, 0)
-            repository.uploadUnsyncedTracks() 
+            repository.uploadUnsyncedData() 
             
             val userUuid = userPreferences.userUuid.firstOrNull() ?: ""
             val run = com.appradar.wear.data.local.entity.WearRaceRunEntity(
@@ -156,10 +176,11 @@ class ActiveRaceViewModel @Inject constructor(
                 startTime = initialStartTimeMillis,
                 endTime = System.currentTimeMillis(),
                 totalTime = finalTime,
-                isCompleted = true,
+                isCompleted = false,
+                isAbandoned = true,
                 sessionUuid = currentSessionUuid
             )
-            repository.uploadRaceRun(run)
+            repository.saveRaceRun(run)
         }
     }
 
@@ -226,7 +247,7 @@ class ActiveRaceViewModel @Inject constructor(
 
         viewModelScope.launch { 
             userPreferences.setActiveRace(null, 0)
-            repository.uploadUnsyncedTracks() 
+            repository.uploadUnsyncedData() 
             val userUuid = userPreferences.userUuid.firstOrNull() ?: ""
             val run = com.appradar.wear.data.local.entity.WearRaceRunEntity(
                 runUuid = currentRunUuid,
@@ -237,9 +258,10 @@ class ActiveRaceViewModel @Inject constructor(
                 endTime = System.currentTimeMillis(),
                 totalTime = finalTime,
                 isCompleted = true,
+                isAbandoned = false,
                 sessionUuid = currentSessionUuid
             )
-            repository.uploadRaceRun(run)
+            repository.saveRaceRun(run)
         }
     }
 

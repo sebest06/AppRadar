@@ -41,6 +41,7 @@ fun ActiveRaceScreen(
     val isPaused by viewModel.isPaused.collectAsState()
     val nextDistance by viewModel.nextWaypointDistance.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     LaunchedEffect(trailUuid) { viewModel.loadTrail(trailUuid) }
 
@@ -112,8 +113,20 @@ fun ActiveRaceScreen(
             }
 
             if (!isRaceStarted) {
+                error?.let {
+                    item {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.caption3,
+                            color = MaterialTheme.colors.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 10.dp)
+                        )
+                    }
+                }
                 item {
                     Button(
+// ...
                         onClick = { viewModel.startRace() },
                         modifier = Modifier.fillMaxWidth()
                     ) {

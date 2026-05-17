@@ -8,6 +8,9 @@ import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.UserEntity
 import com.appradar.data.local.entity.WaypointEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +32,7 @@ class RadarRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 val loginResponse = response.body()!!
                 userPreferences.setAuthToken(loginResponse.token)
+                userPreferences.setUserUuid(loginResponse.user.uuid)
                 saveUser(loginResponse.user)
                 true
             } else false
@@ -72,7 +76,22 @@ class RadarRepository @Inject constructor(
         } catch (e: Exception) {}
     }
 
-    suspend fun uploadUnsyncedTracks() {
+    suspend fun uploadUnsyncedData() {
+        // 1. Sincronizar Carreras (Runs) que no tienen sessionUuid
+        try {
+            val unsyncedRuns = radarDao.getUnsyncedRaceRuns()
+            unsyncedRuns.forEach { run ->
+                val response = apiService.uploadRaceRun(run)
+                if (response.isSuccessful && response.body() != null) {
+                    val sessionUuid = response.body()!!.sessionUuid
+                    if (sessionUuid != null) {
+                        radarDao.insertRaceRun(run.copy(sessionUuid = sessionUuid))
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Sincronizar Waypoints (Tracks)
         try {
             val unsynced = radarDao.getUnsyncedTracks()
             if (unsynced.isNotEmpty()) {
@@ -81,7 +100,7 @@ class RadarRepository @Inject constructor(
                     radarDao.markTracksAsSynced(unsynced.map { it.trackUuid })
                 }
             }
-        } catch (e: Exception) {}
+        } catch (_: Exception) {}
     }
 
     suspend fun uploadRaceRun(run: RaceRunEntity): String? {
@@ -114,12 +133,21 @@ class RadarRepository @Inject constructor(
             emptyList()
         }
     }
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun observeCurrentUser(): Flow<UserEntity?> {
+        return userPreferences.userUuid.flatMapLatest { uuid ->
+            if (uuid != null) radarDao.getUserByIdFlow(uuid)
+            else flowOf(null)
+        }
+    }
+
     suspend fun saveUser(user: UserEntity) {
         radarDao.insertUser(user)
     }
 
     suspend fun getCurrentUser(): UserEntity? {
-        return radarDao.getCurrentUser()
+        val uuid = userPreferences.userUuid.firstOrNull() ?: return radarDao.getCurrentUser()
+        return radarDao.getUserById(uuid)
     }
 
     suspend fun saveTrail(trail: TrailEntity) {
@@ -140,10 +168,12 @@ class RadarRepository @Inject constructor(
 
     suspend fun saveTrack(track: TrackEntity) {
         radarDao.insertTrack(track)
+        uploadUnsyncedData()
     }
 
     suspend fun saveRaceRun(run: RaceRunEntity) {
         radarDao.insertRaceRun(run)
+        uploadUnsyncedData()
     }
 
     fun getAllRaceRuns(): Flow<List<RaceRunEntity>> {
@@ -152,6 +182,10 @@ class RadarRepository @Inject constructor(
 
     suspend fun getRaceRunById(runUuid: String): RaceRunEntity? {
         return radarDao.getRaceRunById(runUuid)
+    }
+
+    suspend fun getLastRunForTrail(trailUuid: String): RaceRunEntity? {
+        return radarDao.getLastRunForTrail(trailUuid)
     }
 
     fun getTracksForRun(runUuid: String): Flow<List<TrackEntity>> {

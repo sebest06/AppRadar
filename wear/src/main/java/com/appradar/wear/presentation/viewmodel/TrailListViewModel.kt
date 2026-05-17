@@ -24,6 +24,9 @@ class TrailListViewModel @Inject constructor(
     val activeTrailUuid: StateFlow<String?> = userPreferences.activeTrailUuid
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val userName: StateFlow<String?> = userPreferences.userName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val trails: StateFlow<List<WearTrailEntity>> = repository.getAllTrails()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

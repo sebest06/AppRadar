@@ -8,7 +8,9 @@ import com.appradar.data.repository.RadarRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,8 +21,8 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
     val allTrails: Flow<List<TrailEntity>> = repository.getAllTrails()
 
-    private val _currentUser = MutableStateFlow<UserEntity?>(null)
-    val currentUser: StateFlow<UserEntity?> = _currentUser
+    val currentUser: StateFlow<UserEntity?> = repository.observeCurrentUser()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val activeTrailUuid: Flow<String?> = userPreferences.activeTrailUuid
 
@@ -28,9 +30,6 @@ class HomeViewModel @Inject constructor(
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
     init {
-        viewModelScope.launch {
-            _currentUser.value = repository.getCurrentUser()
-        }
         refreshTrails()
     }
 

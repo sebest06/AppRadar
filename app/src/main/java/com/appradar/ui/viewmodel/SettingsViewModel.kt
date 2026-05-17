@@ -41,6 +41,13 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    fun logout() {
+        viewModelScope.launch {
+            userPreferences.setAuthToken(null)
+            userPreferences.setUserUuid(null)
+        }
+    }
 }
 
 sealed class WearSyncState {

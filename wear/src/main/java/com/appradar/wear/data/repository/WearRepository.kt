@@ -19,6 +19,9 @@ class WearRepository @Inject constructor(
     suspend fun getTrailById(trailUuid: String): WearTrailEntity? =
         wearDao.getTrailById(trailUuid)
 
+    suspend fun getLastRunForTrail(trailUuid: String): com.appradar.wear.data.local.entity.WearRaceRunEntity? =
+        wearDao.getLastRunForTrail(trailUuid)
+
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WearWaypointEntity>> =
         wearDao.getWaypointsForTrail(trailUuid)
 
@@ -41,25 +44,42 @@ class WearRepository @Inject constructor(
         wearDao.insertWaypoints(waypoints)
     }
 
-    suspend fun saveTrack(track: WearTrackEntity) = wearDao.insertTrack(track)
-
-    suspend fun uploadUnsyncedTracks() {
-        val unsynced = wearDao.getUnsyncedTracks()
-        if (unsynced.isNotEmpty()) {
-            val response = apiService.uploadTracks(unsynced)
-            if (response.isSuccessful) {
-                wearDao.markTracksAsSynced(unsynced.map { it.trackUuid })
-            }
-        }
+    suspend fun saveTrack(track: WearTrackEntity) {
+        wearDao.insertTrack(track)
+        uploadUnsyncedData()
     }
-    suspend fun uploadRaceRun(run: com.appradar.wear.data.local.entity.WearRaceRunEntity): String? {
+
+    suspend fun saveRaceRun(run: com.appradar.wear.data.local.entity.WearRaceRunEntity): String? {
+        wearDao.insertRaceRun(run)
+        uploadUnsyncedData()
+        return wearDao.getRaceRunById(run.runUuid)?.sessionUuid
+    }
+
+    suspend fun uploadUnsyncedData() {
+        // 1. Sync Runs
         try {
-            val response = apiService.uploadRaceRun(run)
-            if (response.isSuccessful) {
-                return response.body()?.sessionUuid
+            val unsyncedRuns = wearDao.getUnsyncedRaceRuns()
+            unsyncedRuns.forEach { run ->
+                val response = apiService.uploadRaceRun(run)
+                if (response.isSuccessful && response.body() != null) {
+                    val sessionUuid = response.body()!!.sessionUuid
+                    if (sessionUuid != null) {
+                        wearDao.insertRaceRun(run.copy(sessionUuid = sessionUuid))
+                    }
+                }
             }
-        } catch (e: Exception) {}
-        return null
+        } catch (_: Exception) {}
+
+        // 2. Sync Tracks
+        try {
+            val unsynced = wearDao.getUnsyncedTracks()
+            if (unsynced.isNotEmpty()) {
+                val response = apiService.uploadTracks(unsynced)
+                if (response.isSuccessful) {
+                    wearDao.markTracksAsSynced(unsynced.map { it.trackUuid })
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.wear.data.remote.WearRankingEntry> {

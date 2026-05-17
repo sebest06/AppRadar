@@ -19,7 +19,7 @@ import com.appradar.data.local.entity.WaypointEntity
         PathPointEntity::class,
         RaceRunEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

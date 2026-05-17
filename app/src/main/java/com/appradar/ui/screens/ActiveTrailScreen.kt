@@ -47,6 +47,15 @@ fun ActiveTrailScreen(
     val isPaused by viewModel.isPaused.collectAsState()
     val elapsedTime by viewModel.elapsedTimeMillis.collectAsState()
     val userIconResId by viewModel.userIconResId.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(error) {
+        error?.let {
+            snackbarHostState.showSnackbar(it)
+        }
+    }
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -83,6 +92,7 @@ fun ActiveTrailScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(trail?.name ?: "Cargando...") },

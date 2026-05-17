@@ -33,7 +33,10 @@ class WearSyncHelper @Inject constructor(
         val request = PutDataMapRequest.create("/appradar/api-config").apply {
             dataMap.putString("api_url", apiUrl)
             token?.let { dataMap.putString("auth_token", it) }
-            user?.uuid?.let { dataMap.putString("user_uuid", it) }
+            user?.let {
+                dataMap.putString("user_uuid", it.uuid)
+                dataMap.putString("user_name", it.nombre)
+            }
             setUrgent()
         }.asPutDataRequest()
 

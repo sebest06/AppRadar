@@ -66,11 +66,23 @@ interface RadarDao {
     @Query("SELECT * FROM waypoints WHERE trailUuid = :trailUuid")
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WaypointEntity>>
 
+    @Query("SELECT * FROM race_runs WHERE trailUuid = :trailUuid ORDER BY startTime DESC LIMIT 1")
+    suspend fun getLastRunForTrail(trailUuid: String): RaceRunEntity?
+
+    @Query("SELECT * FROM users WHERE uuid = :uuid LIMIT 1")
+    suspend fun getUserById(uuid: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE uuid = :uuid LIMIT 1")
+    fun getUserByIdFlow(uuid: String): Flow<UserEntity?>
+
     @Query("SELECT * FROM users LIMIT 1")
     suspend fun getCurrentUser(): UserEntity?
 
     @Query("SELECT * FROM tracks WHERE isSynced = 0")
     suspend fun getUnsyncedTracks(): List<TrackEntity>
+
+    @Query("SELECT * FROM race_runs WHERE sessionUuid IS NULL")
+    suspend fun getUnsyncedRaceRuns(): List<RaceRunEntity>
 
     @Query("UPDATE tracks SET isSynced = 1 WHERE trackUuid IN (:trackUuids)")
     suspend fun markTracksAsSynced(trackUuids: List<String>)

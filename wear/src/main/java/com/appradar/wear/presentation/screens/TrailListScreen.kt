@@ -25,6 +25,7 @@ fun TrailListScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val activeTrailUuid by viewModel.activeTrailUuid.collectAsState()
+    val userName by viewModel.userName.collectAsState()
     val listState = rememberScalingLazyListState()
 
     Scaffold(
@@ -41,7 +42,7 @@ fun TrailListScreen(
         ) {
             item {
                 Text(
-                    text = "Carreras",
+                    text = if (userName != null) "Hola, $userName" else "Carreras",
                     style = MaterialTheme.typography.title3,
                     textAlign = TextAlign.Center
                 )
