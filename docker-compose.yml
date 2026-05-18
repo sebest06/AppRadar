@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Imagen base compartida para desarrollo y herramientas
+  dev-env:
+    build: .
+    image: appradar-dev
+    volumes:
+      - .:/app
+    environment:
+      - API_URL=http://backend:3000
+    # No hace nada por defecto, se usa como base o para entrar vía bash
+    command: tail -f /dev/null
+
+  backend:
+    image: appradar-dev
+    ports:
+      - "3000:3000"
+    working_dir: /app/backend
+    command: npm start
+    volumes:
+      - .:/app
+    depends_on:
+      - dev-env
+
+  frontend:
+    image: appradar-dev
+    ports:
+      - "5173:5173"
+    working_dir: /app/frontend
+    command: npm run dev -- --host
+    volumes:
+      - .:/app
+    depends_on:
+      - backend
+
+networks:
+  default:
+    name: appradar-network
