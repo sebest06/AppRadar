@@ -4,33 +4,52 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.appradar.wear.presentation.screens.ActiveRaceScreen
+import com.appradar.wear.presentation.screens.LoginScreen
 import com.appradar.wear.presentation.screens.TrailListScreen
+import com.appradar.wear.util.WearUserPreferences
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var userPreferences: WearUserPreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                WearApp()
+                val authToken by userPreferences.authToken.collectAsState(initial = null)
+                WearApp(isLoggedIn = authToken != null)
             }
         }
     }
 }
 
 @Composable
-fun WearApp() {
+fun WearApp(isLoggedIn: Boolean) {
     val navController = rememberSwipeDismissableNavController()
     SwipeDismissableNavHost(
         navController = navController,
-        startDestination = "trail_list"
+        startDestination = if (isLoggedIn) "trail_list" else "login"
     ) {
+        composable("login") {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("trail_list") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
         composable("trail_list") {
             TrailListScreen(
                 onNavigateToRace = { trailUuid ->
