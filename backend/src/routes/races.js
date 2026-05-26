@@ -1,14 +1,38 @@
 const express = require('express')
 const { v4: uuidv4 } = require('uuid')
+const { z } = require('zod')
 const { authMiddleware } = require('../middleware/auth')
+const { validate } = require('../middleware/validate')
 const { computeRankings, latestSession } = require('../services/rankings')
 const { broadcast } = require('../services/realtime')
 const { COOLDOWN_MS, SESSION_WINDOW_MS, ONLINE_WINDOW_MS } = require('../constants')
 
+const runSchema = z.object({
+  runUuid: z.string().uuid('runUuid inválido'),
+  trailUuid: z.string().uuid('trailUuid inválido'),
+  userUuid: z.string().uuid('userUuid inválido'),
+  startTime: z.number().int().positive().optional(),
+  endTime: z.number().int().positive().nullable().optional(),
+  totalTime: z.number().int().min(0).optional(),
+  isCompleted: z.boolean().optional().default(false),
+  isAbandoned: z.boolean().optional().default(false),
+  sos: z.boolean().optional().default(false),
+})
+
+const trackItemSchema = z.object({
+  trackUuid: z.string().uuid('trackUuid inválido'),
+  runUuid: z.string().uuid('runUuid inválido'),
+  waypointUuid: z.string().uuid('waypointUuid inválido'),
+  trailUuid: z.string().uuid('trailUuid inválido'),
+  userUuid: z.string().uuid('userUuid inválido').optional(),
+  timestamp: z.number().int().positive('timestamp inválido'),
+})
+const tracksSchema = z.union([trackItemSchema, z.array(trackItemSchema).min(1)])
+
 function createRacesRouter(db) {
   const router = express.Router()
 
-  router.post('/runs/upload', authMiddleware, (req, res) => {
+  router.post('/runs/upload', authMiddleware, validate(runSchema), (req, res) => {
     const run = req.body
     const existing = db.prepare('SELECT sessionUuid, startTime, isCompleted, isAbandoned, sos FROM race_runs WHERE runUuid = ?').get(run.runUuid)
     const sessionUuid = existing?.sessionUuid || findOrCreateSession(db, run.trailUuid, run.startTime)
@@ -28,7 +52,7 @@ function createRacesRouter(db) {
     emitRaceEventIfChanged(db, run, existing)
   })
 
-  router.post('/tracks/upload', authMiddleware, (req, res) => {
+  router.post('/tracks/upload', authMiddleware, validate(tracksSchema), (req, res) => {
     const tracks = Array.isArray(req.body) ? req.body : [req.body]
     insertTracks(db, tracks, req.user.uuid)
     res.status(200).json({ ok: true })
@@ -39,6 +63,9 @@ function createRacesRouter(db) {
     const { trailUuid, teamUuid, sessionUuid: reqSession, categoryUuid } = req.query
     if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
 
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500)
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0)
+
     const sessionUuid = reqSession || latestSession(db, trailUuid)
     let rankings = computeRankings(db, trailUuid, teamUuid || null, sessionUuid)
 
@@ -48,18 +75,28 @@ function createRacesRouter(db) {
       rankings = rankings.filter(r => usersInCategory.includes(r.userUuid))
     }
 
-    res.json(rankings)
+    res.json({ data: rankings.slice(offset, offset + limit), total: rankings.length, limit, offset })
   })
 
   router.get('/races/sessions', (req, res) => {
     const { trailUuid } = req.query
     if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100)
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0)
+
+    const { total } = db.prepare(`
+      SELECT COUNT(DISTINCT sessionUuid) as total FROM race_runs WHERE trailUuid = ? AND sessionUuid IS NOT NULL
+    `).get(trailUuid)
+
     const sessions = db.prepare(`
       SELECT sessionUuid, MIN(startTime) as startTime, COUNT(*) as runnerCount
       FROM race_runs WHERE trailUuid = ? AND sessionUuid IS NOT NULL
       GROUP BY sessionUuid ORDER BY startTime DESC
-    `).all(trailUuid)
-    res.json(sessions)
+      LIMIT ? OFFSET ?
+    `).all(trailUuid, limit, offset)
+
+    res.json({ data: sessions, total, limit, offset })
   })
 
   router.get('/races/live', (req, res) => {
@@ -97,11 +134,19 @@ function createRacesRouter(db) {
     const session = db.prepare('SELECT trailUuid FROM race_runs WHERE sessionUuid = ? LIMIT 1').get(sessionUuid)
     if (!session) return res.status(404).json({ error: 'Sesión no encontrada' })
 
-    const runUuids = db.prepare('SELECT runUuid FROM race_runs WHERE sessionUuid = ?').all(sessionUuid).map(r => r.runUuid)
+    const trail = db.prepare('SELECT createdBy FROM trails WHERE trailUuid = ?').get(session.trailUuid)
+    if (req.user.role !== 'superuser' && trail?.createdBy !== req.user.uuid) {
+      return res.status(403).json({ error: 'Sin permiso para borrar esta sesión' })
+    }
+
+    const runs = db.prepare('SELECT runUuid, userUuid, startTime, endTime FROM race_runs WHERE sessionUuid = ?').all(sessionUuid)
 
     db.transaction(() => {
-      for (const runUuid of runUuids) {
-        db.prepare('DELETE FROM tracks WHERE runUuid = ?').run(runUuid)
+      for (const run of runs) {
+        db.prepare('DELETE FROM tracks WHERE runUuid = ?').run(run.runUuid)
+        const endBound = run.endTime || (run.startTime + 24 * 3600 * 1000)
+        db.prepare('DELETE FROM gps_positions WHERE userUuid = ? AND trailUuid = ? AND timestamp >= ? AND timestamp <= ?')
+          .run(run.userUuid, session.trailUuid, run.startTime, endBound)
       }
       db.prepare('DELETE FROM race_runs WHERE sessionUuid = ?').run(sessionUuid)
     })()

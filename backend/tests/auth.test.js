@@ -139,7 +139,7 @@ describe('Autenticación de usuarios', () => {
         user: 'runner_bad_team',
         passw: 'password123',
         nombre: 'Bad Team',
-        uuid_team: 'uuid-inexistente',
+        uuid_team: '00000000-0000-0000-0000-000000000000',
         role: 'runner'
       })
       expect(res.status).toBe(404)

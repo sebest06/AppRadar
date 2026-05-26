@@ -1,8 +1,35 @@
 const express = require('express')
 const jwt = require('jsonwebtoken')
 const { v4: uuidv4 } = require('uuid')
+const { z } = require('zod')
 const { authMiddleware, requireRole, JWT_SECRET } = require('../middleware/auth')
+const { validate } = require('../middleware/validate')
 const { DEFAULT_RADIUS } = require('../constants')
+
+const waypointSchema = z.object({
+  order: z.number({ message: 'order debe ser un número' }).int().min(0),
+  name: z.string().max(100).optional().default(''),
+  lat: z.number({ message: 'lat debe ser un número' }).min(-90, 'lat fuera de rango').max(90, 'lat fuera de rango'),
+  lon: z.number({ message: 'lon debe ser un número' }).min(-180, 'lon fuera de rango').max(180, 'lon fuera de rango'),
+  radius: z.number().positive().optional(),
+})
+
+const createTrailSchema = z.object({
+  name: z.string({ message: 'El nombre es requerido' }).min(1, 'El nombre es requerido').max(100),
+  description: z.string().max(500).optional().default(''),
+  distanceKm: z.number().min(0).optional().default(0),
+  elevationM: z.number().min(0).optional().default(0),
+  maxSkip: z.number().int().min(0).optional().default(1),
+  waypoints: z.array(waypointSchema, { message: 'Se requieren waypoints' }).min(2, 'Se requieren al menos 2 waypoints'),
+})
+
+const updateTrailSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  distanceKm: z.number().min(0).optional(),
+  elevationM: z.number().min(0).optional(),
+  maxSkip: z.number().int().min(0).optional(),
+})
 
 function createTrailsRouter(db) {
   const router = express.Router()
@@ -20,10 +47,8 @@ function createTrailsRouter(db) {
     res.json({ ...trail, isActive: !!trail.isActive, waypoints })
   })
 
-  router.post('/trails', authMiddleware, requireRole('organizer', 'superuser'), (req, res) => {
+  router.post('/trails', authMiddleware, requireRole('organizer', 'superuser'), validate(createTrailSchema), (req, res) => {
     const { name, description, distanceKm, elevationM, maxSkip, waypoints } = req.body
-    if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
-    if (!waypoints?.length) return res.status(400).json({ error: 'Se requieren waypoints' })
 
     const trailUuid = uuidv4()
     const teamUuid = req.user.role === 'superuser' ? null : req.user.uuid_team
@@ -39,7 +64,7 @@ function createTrailsRouter(db) {
     res.status(201).json({ ...trail, isActive: false })
   })
 
-  router.put('/trails/:trailId', authMiddleware, requireRole('organizer', 'superuser'), (req, res) => {
+  router.put('/trails/:trailId', authMiddleware, requireRole('organizer', 'superuser'), validate(updateTrailSchema), (req, res) => {
     const trail = db.prepare('SELECT * FROM trails WHERE trailUuid = ?').get(req.params.trailId)
     if (!trail) return res.status(404).json({ error: 'Carrera no encontrada' })
     if (!canModifyTrail(req.user, trail)) return res.status(403).json({ error: 'Sin permiso' })

@@ -291,36 +291,46 @@ describe('Ciclo de vida de una carrera', () => {
     it('retorna el ranking con el corredor visible y sus waypoints alcanzados', async () => {
       const res = await request(app).get(`/rankings?trailUuid=${rankTrailUuid}`)
       expect(res.status).toBe(200)
-      const runner = res.body.find(r => r.userUuid === rankRunnerUuid)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      const runner = res.body.data.find(r => r.userUuid === rankRunnerUuid)
       expect(runner).toBeDefined()
       expect(runner.waypointsReached).toBeGreaterThanOrEqual(1)
     })
 
     it('ordena el ranking de mayor a menor cantidad de waypoints alcanzados', async () => {
       const res = await request(app).get(`/rankings?trailUuid=${rankTrailUuid}`)
-      for (let i = 0; i < res.body.length - 1; i++) {
-        expect(res.body[i].waypointsReached).toBeGreaterThanOrEqual(res.body[i + 1].waypointsReached)
+      for (let i = 0; i < res.body.data.length - 1; i++) {
+        expect(res.body.data[i].waypointsReached).toBeGreaterThanOrEqual(res.body.data[i + 1].waypointsReached)
       }
     })
 
     it('marca al corredor como completado cuando isCompleted es true', async () => {
       db.prepare('UPDATE race_runs SET isCompleted = 1 WHERE runUuid = ?').run(rankRunUuid)
       const res = await request(app).get(`/rankings?trailUuid=${rankTrailUuid}`)
-      const runner = res.body.find(r => r.userUuid === rankRunnerUuid)
+      const runner = res.body.data.find(r => r.userUuid === rankRunnerUuid)
       expect(runner.isCompleted).toBe(true)
     })
 
     it('marca al corredor como abandonado cuando isAbandoned es true', async () => {
       db.prepare('UPDATE race_runs SET isCompleted = 0, isAbandoned = 1 WHERE runUuid = ?').run(rankRunUuid)
       const res = await request(app).get(`/rankings?trailUuid=${rankTrailUuid}`)
-      const runner = res.body.find(r => r.userUuid === rankRunnerUuid)
+      const runner = res.body.data.find(r => r.userUuid === rankRunnerUuid)
       expect(runner.isAbandoned).toBe(true)
     })
 
     it('filtra por sesión cuando se provee sessionUuid', async () => {
       const res = await request(app).get(`/rankings?trailUuid=${rankTrailUuid}&sessionUuid=${rankSessionUuid}`)
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body)).toBe(true)
+      expect(Array.isArray(res.body.data)).toBe(true)
+    })
+
+    it('devuelve paginación con total, limit y offset', async () => {
+      const res = await request(app).get(`/rankings?trailUuid=${rankTrailUuid}&limit=1&offset=0`)
+      expect(res.status).toBe(200)
+      expect(res.body.data.length).toBeLessThanOrEqual(1)
+      expect(typeof res.body.total).toBe('number')
+      expect(res.body.limit).toBe(1)
+      expect(res.body.offset).toBe(0)
     })
 
     it('devuelve 400 cuando no se provee trailUuid', async () => {
@@ -330,14 +340,23 @@ describe('Ciclo de vida de una carrera', () => {
   })
 
   describe('GET /races/sessions', () => {
-    it('lista todas las sesiones de una ruta con cantidad de corredores', async () => {
+    it('lista sesiones con paginación y cantidad de corredores', async () => {
       const res = await request(app).get(`/races/sessions?trailUuid=${trailUuid}`)
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body)).toBe(true)
-      if (res.body.length > 0) {
-        expect(res.body[0].sessionUuid).toBeDefined()
-        expect(res.body[0].runnerCount).toBeGreaterThan(0)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(typeof res.body.total).toBe('number')
+      if (res.body.data.length > 0) {
+        expect(res.body.data[0].sessionUuid).toBeDefined()
+        expect(res.body.data[0].runnerCount).toBeGreaterThan(0)
       }
+    })
+
+    it('respeta el limit y offset enviados', async () => {
+      const res = await request(app).get(`/races/sessions?trailUuid=${trailUuid}&limit=1&offset=0`)
+      expect(res.status).toBe(200)
+      expect(res.body.data.length).toBeLessThanOrEqual(1)
+      expect(res.body.limit).toBe(1)
+      expect(res.body.offset).toBe(0)
     })
 
     it('devuelve 400 cuando no se provee trailUuid', async () => {
@@ -440,6 +459,85 @@ describe('Ciclo de vida de una carrera', () => {
       const res = await request(app).get(`/races/${historyTrailUuid}/route-history/uuid-sin-posiciones`)
       expect(res.status).toBe(200)
       expect(res.body).toHaveLength(0)
+    })
+  })
+
+  describe('DELETE /races/sessions/:sessionUuid', () => {
+    let delTrailUuid
+    let delSessionUuid
+    let otherOrgToken
+
+    beforeAll(async () => {
+      const trail = await createTrail(app, organizerToken, 2)
+      delTrailUuid = trail.trailUuid
+
+      const runUuid = uuidv4()
+      const uploadRes = await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid, trailUuid: delTrailUuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false, isAbandoned: false, sos: false })
+      delSessionUuid = uploadRes.body.sessionUuid
+
+      const otherOrgRes = await request(app).post('/auth/register').send({
+        user: 'org_other_del',
+        passw: 'password123',
+        nombre: 'Otro Org',
+        team: 'Otro Equipo',
+        role: 'organizer'
+      })
+      otherOrgToken = otherOrgRes.body.token
+    })
+
+    it('devuelve 401 sin token', async () => {
+      const res = await request(app).delete(`/races/sessions/${delSessionUuid}`)
+      expect(res.status).toBe(401)
+    })
+
+    it('devuelve 403 si el usuario no es el creador de la carrera ni superuser', async () => {
+      const res = await request(app)
+        .delete(`/races/sessions/${delSessionUuid}`)
+        .set('Authorization', `Bearer ${otherOrgToken}`)
+      expect(res.status).toBe(403)
+    })
+
+    it('devuelve 403 si es un runner (no organizador)', async () => {
+      const res = await request(app)
+        .delete(`/races/sessions/${delSessionUuid}`)
+        .set('Authorization', `Bearer ${runnerToken}`)
+      expect(res.status).toBe(403)
+    })
+
+    it('devuelve 404 si la sesión no existe', async () => {
+      const res = await request(app)
+        .delete(`/races/sessions/${uuidv4()}`)
+        .set('Authorization', `Bearer ${organizerToken}`)
+      expect(res.status).toBe(404)
+    })
+
+    it('el creador de la carrera puede borrar la sesión', async () => {
+      const res = await request(app)
+        .delete(`/races/sessions/${delSessionUuid}`)
+        .set('Authorization', `Bearer ${organizerToken}`)
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+
+      const check = await request(app).get(`/races/sessions?trailUuid=${delTrailUuid}`)
+      expect(check.body.data.find(s => s.sessionUuid === delSessionUuid)).toBeUndefined()
+    })
+
+    it('el superuser puede borrar cualquier sesión', async () => {
+      const trail2 = await createTrail(app, organizerToken, 2)
+      const runUuid2 = uuidv4()
+      const uploadRes = await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: runUuid2, trailUuid: trail2.trailUuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false, isAbandoned: false, sos: false })
+      const sessionToDelete = uploadRes.body.sessionUuid
+
+      const res = await request(app)
+        .delete(`/races/sessions/${sessionToDelete}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+      expect(res.status).toBe(200)
     })
   })
 })

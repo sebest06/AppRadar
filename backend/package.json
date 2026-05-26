@@ -10,9 +10,13 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "forceExit": true,
-    "setupFiles": ["<rootDir>/tests/jest.setup.js"]
+    "setupFiles": [
+      "<rootDir>/tests/jest.setup.js"
+    ]
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -23,7 +27,8 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.3",
     "socket.io": "^4.8.3",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cucumber/cucumber": "^11.2.0",

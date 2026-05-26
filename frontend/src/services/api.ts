@@ -59,18 +59,20 @@ export const trailsApi = {
   activate: (id: string) => api.post(`/trails/${id}/activate`),
 }
 
+export type Paginated<T> = { data: T[]; total: number; limit: number; offset: number }
+
 // Rankings
 export const rankingsApi = {
-  get: (trailUuid: string, options?: { teamUuid?: string; sessionUuid?: string }) =>
-    api.get<import('../types').RankingEntry[]>('/rankings', {
+  get: (trailUuid: string, options?: { teamUuid?: string; sessionUuid?: string; limit?: number; offset?: number }) =>
+    api.get<Paginated<import('../types').RankingEntry>>('/rankings', {
       params: { trailUuid, ...options },
     }),
 }
 
 // Race sessions & live positions
 export const racesApi = {
-  sessions: (trailUuid: string) =>
-    api.get<import('../types').RaceSession[]>('/races/sessions', { params: { trailUuid } }),
+  sessions: (trailUuid: string, options?: { limit?: number; offset?: number }) =>
+    api.get<Paginated<import('../types').RaceSession>>('/races/sessions', { params: { trailUuid, ...options } }),
   livePositions: (trailUuid: string, sessionUuid?: string) =>
     api.get<import('../types').LivePosition[]>('/races/live', { params: { trailUuid, sessionUuid } }),
   routeHistory: (trailId: string, userUuid: string) =>

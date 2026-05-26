@@ -2,16 +2,30 @@ const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { v4: uuidv4 } = require('uuid')
+const { z } = require('zod')
 const { JWT_SECRET } = require('../middleware/auth')
+const { validate } = require('../middleware/validate')
+
+const registerSchema = z.object({
+  user: z.string().min(3, 'El usuario debe tener al menos 3 caracteres').max(50),
+  passw: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+  nombre: z.string().min(1, 'El nombre es requerido').max(100),
+  team: z.string().max(100).optional(),
+  role: z.enum(['runner', 'organizer', 'spectator']).optional(),
+  activityType: z.enum(['runner', 'bike', 'car']).optional(),
+  uuid_team: z.string().uuid('uuid_team inválido').optional(),
+})
+
+const loginSchema = z.object({
+  user: z.string().min(1, 'Usuario requerido'),
+  passw: z.string().min(1, 'Contraseña requerida'),
+})
 
 function createAuthRouter(db) {
   const router = express.Router()
 
-  router.post('/register', (req, res) => {
+  router.post('/register', validate(registerSchema), (req, res) => {
     const { user, passw, nombre, team, role, activityType, uuid_team: inputTeamUuid } = req.body
-
-    if (!user || !passw || !nombre) return res.status(400).json({ error: 'Faltan campos requeridos' })
-    if (passw.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
 
     const existing = db.prepare('SELECT 1 FROM users WHERE user = ?').get(user)
     if (existing) return res.status(409).json({ error: 'El usuario ya existe' })
@@ -39,7 +53,7 @@ function createAuthRouter(db) {
     res.status(201).json({ token, user: newUser })
   })
 
-  router.post('/login', (req, res) => {
+  router.post('/login', validate(loginSchema), (req, res) => {
     const { user, passw } = req.body
     const found = db.prepare('SELECT * FROM users WHERE user = ?').get(user)
     if (!found || !bcrypt.compareSync(passw, found.passw)) {

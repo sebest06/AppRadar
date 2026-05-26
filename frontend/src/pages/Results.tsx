@@ -429,31 +429,63 @@ export default function Results() {
   const user = useAuthStore(s => s.user)
   const canDelete = user?.role === 'organizer' || user?.role === 'superuser'
 
+  const SESSIONS_LIMIT = 20
+  const RANKINGS_LIMIT = 50
+
   const [trail, setTrail] = useState<TrailWithWaypoints | null>(null)
   const [rankings, setRankings] = useState<RankingEntry[]>([])
+  const [rankingsTotal, setRankingsTotal] = useState(0)
+  const [rankingsOffset, setRankingsOffset] = useState(0)
   const [sessions, setSessions] = useState<RaceSession[]>([])
+  const [sessionsTotal, setSessionsTotal] = useState(0)
+  const [sessionsOffset, setSessionsOffset] = useState(0)
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [deletingSession, setDeletingSession] = useState<string | null>(null)
   const [selectedRunner, setSelectedRunner] = useState<RankingEntry | null>(null)
 
   useEffect(() => {
     if (!id) return
-    Promise.all([trailsApi.details(id), racesApi.sessions(id)])
+    Promise.all([trailsApi.details(id), racesApi.sessions(id, { limit: SESSIONS_LIMIT, offset: 0 })])
       .then(([t, s]) => {
         setTrail(t.data)
-        setSessions(s.data)
-        if (s.data.length > 0) setSelectedSession(s.data[0].sessionUuid)
+        setSessions(s.data.data)
+        setSessionsTotal(s.data.total)
+        setSessionsOffset(0)
+        if (s.data.data.length > 0) setSelectedSession(s.data.data[0].sessionUuid)
       })
   }, [id])
 
   useEffect(() => {
     if (!id) return
     setLoading(true)
-    rankingsApi.get(id, selectedSession ? { sessionUuid: selectedSession } : undefined)
-      .then(r => setRankings(r.data))
+    setRankingsOffset(0)
+    rankingsApi.get(id, { sessionUuid: selectedSession ?? undefined, limit: RANKINGS_LIMIT, offset: 0 })
+      .then(r => { setRankings(r.data.data); setRankingsTotal(r.data.total) })
       .finally(() => setLoading(false))
   }, [id, selectedSession])
+
+  function loadMoreSessions() {
+    if (!id) return
+    const nextOffset = sessionsOffset + SESSIONS_LIMIT
+    setLoadingMore(true)
+    racesApi.sessions(id, { limit: SESSIONS_LIMIT, offset: nextOffset })
+      .then(r => {
+        setSessions(prev => [...prev, ...r.data.data])
+        setSessionsOffset(nextOffset)
+      })
+      .finally(() => setLoadingMore(false))
+  }
+
+  function loadMoreRankings() {
+    if (!id) return
+    const nextOffset = rankingsOffset + RANKINGS_LIMIT
+    setLoadingMore(true)
+    rankingsApi.get(id, { sessionUuid: selectedSession ?? undefined, limit: RANKINGS_LIMIT, offset: nextOffset })
+      .then(r => { setRankings(prev => [...prev, ...r.data.data]); setRankingsOffset(nextOffset) })
+      .finally(() => setLoadingMore(false))
+  }
 
   async function handleDeleteSession(sessionUuid: string) {
     if (!confirm('¿Borrar esta sesión y todos sus datos? Esta acción no se puede deshacer.')) return
@@ -462,6 +494,7 @@ export default function Results() {
       await racesApi.deleteSession(sessionUuid)
       const remaining = sessions.filter(s => s.sessionUuid !== sessionUuid)
       setSessions(remaining)
+      setSessionsTotal(t => t - 1)
       if (selectedSession === sessionUuid) {
         setSelectedSession(remaining.length > 0 ? remaining[0].sessionUuid : null)
       }
@@ -511,14 +544,22 @@ export default function Results() {
           <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide whitespace-nowrap">Sesión:</span>
           <select
             value={selectedSession ?? ''}
-            onChange={e => setSelectedSession(e.target.value)}
+            onChange={e => {
+              if (e.target.value === '__load_more__') { loadMoreSessions(); return }
+              setSelectedSession(e.target.value)
+            }}
             className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             {sessions.map((s, i) => (
               <option key={s.sessionUuid} value={s.sessionUuid}>
-                Carrera {sessions.length - i} — {formatDate(s.startTime)} ({s.runnerCount} corredor{s.runnerCount !== 1 ? 'es' : ''})
+                Carrera {sessionsTotal - i} — {formatDate(s.startTime)} ({s.runnerCount} corredor{s.runnerCount !== 1 ? 'es' : ''})
               </option>
             ))}
+            {sessions.length < sessionsTotal && (
+              <option value="__load_more__" disabled={loadingMore}>
+                {loadingMore ? 'Cargando...' : `▼ Ver más sesiones (${sessionsTotal - sessions.length} restantes)`}
+              </option>
+            )}
           </select>
           {canDelete && selectedSession && (
             <button
@@ -576,6 +617,18 @@ export default function Results() {
                 ))}
               </tbody>
             </table>
+
+            {rankings.length < rankingsTotal && (
+              <div className="px-4 py-3 border-t border-slate-100 text-center">
+                <button
+                  onClick={loadMoreRankings}
+                  disabled={loadingMore}
+                  className="text-sm text-green-600 hover:text-green-700 font-semibold disabled:opacity-50"
+                >
+                  {loadingMore ? 'Cargando...' : `Ver más corredores (${rankingsTotal - rankings.length} restantes)`}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

@@ -244,11 +244,11 @@ export default function LiveRace() {
   useEffect(() => {
     if (!id) return
     const refresh = () => {
-      racesApi.sessions(id).then((r) => {
-        setSessions(r.data)
+      racesApi.sessions(id, { limit: 100 }).then((r) => {
+        setSessions(r.data.data)
         // Only auto-select session if user hasn't manually picked one
-        if (!userPickedSession && r.data.length > 0) {
-          setActiveSession(r.data[0].sessionUuid)
+        if (!userPickedSession && r.data.data.length > 0) {
+          setActiveSession(r.data.data[0].sessionUuid)
         }
       }).catch(() => {})
     }
@@ -262,7 +262,7 @@ export default function LiveRace() {
     if (!id) return
     const teamUuid = teamFilter === 'team' ? user?.uuid_team : undefined
     const fetch = () =>
-      rankingsApi.get(id, { sessionUuid: activeSession ?? undefined, teamUuid }).then((r) => setRankings(r.data)).catch(() => {})
+      rankingsApi.get(id, { sessionUuid: activeSession ?? undefined, teamUuid, limit: 500 }).then((r) => setRankings(r.data.data)).catch(() => {})
     fetch()
     rankTimer.current = setInterval(fetch, 30_000)
     return () => { if (rankTimer.current) clearInterval(rankTimer.current) }

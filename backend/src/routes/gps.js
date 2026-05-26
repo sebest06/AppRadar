@@ -1,13 +1,23 @@
 const express = require('express')
+const { z } = require('zod')
 const { authMiddleware } = require('../middleware/auth')
+const { validate } = require('../middleware/validate')
 const { broadcast } = require('../services/realtime')
+
+const gpsSchema = z.object({
+  trailUuid: z.string().uuid('trailUuid inválido'),
+  lat: z.number({ message: 'lat debe ser un número' }).min(-90, 'lat fuera de rango').max(90, 'lat fuera de rango'),
+  lon: z.number({ message: 'lon debe ser un número' }).min(-180, 'lon fuera de rango').max(180, 'lon fuera de rango'),
+  accuracy: z.number().positive().optional(),
+  timestamp: z.number().int().positive().optional(),
+  activityType: z.enum(['runner', 'bike', 'car']).optional(),
+})
 
 function createGpsRouter(db) {
   const router = express.Router()
 
-  router.post('/gps/upload', authMiddleware, (req, res) => {
+  router.post('/gps/upload', authMiddleware, validate(gpsSchema), (req, res) => {
     const { trailUuid, lat, lon, accuracy, timestamp, activityType } = req.body
-    if (!trailUuid || lat == null || lon == null) return res.status(400).json({ error: 'Faltan datos' })
 
     const ts = timestamp || Date.now()
 

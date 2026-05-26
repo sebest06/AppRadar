@@ -9,9 +9,75 @@ function latestSession(db, trailUuid) {
 
 function computeRankings(db, trailUuid, teamUuid, sessionUuid = null) {
   const runs = queryRuns(db, trailUuid, teamUuid, sessionUuid)
-  const totalWaypoints = db.prepare('SELECT COUNT(*) as c FROM waypoints WHERE trailUuid = ?').get(trailUuid)?.c ?? 0
+  if (!runs.length) return []
 
-  const rankings = runs.map(run => buildRankEntry(db, run, trailUuid, totalWaypoints))
+  const totalWaypoints = db.prepare('SELECT COUNT(*) as c FROM waypoints WHERE trailUuid = ?').get(trailUuid)?.c ?? 0
+  const waypoints = db.prepare('SELECT waypointUuid, "order", name FROM waypoints WHERE trailUuid = ? ORDER BY "order"').all(trailUuid)
+
+  const runUuids = runs.map(r => r.runUuid)
+  const userUuids = [...new Set(runs.map(r => r.userUuid))]
+  const ph = arr => arr.map(() => '?').join(',')
+
+  const userMap = new Map(
+    db.prepare(`SELECT uuid, nombre, team, activityType FROM users WHERE uuid IN (${ph(userUuids)})`)
+      .all(...userUuids).map(u => [u.uuid, u])
+  )
+
+  const statsMap = new Map(
+    db.prepare(`
+      SELECT runUuid, COUNT(DISTINCT waypointUuid) as reached, MAX(timestamp) as lastTs
+      FROM tracks WHERE trailUuid = ? AND runUuid IN (${ph(runUuids)})
+      GROUP BY runUuid
+    `).all(trailUuid, ...runUuids).map(s => [s.runUuid, s])
+  )
+
+  const allWpTimes = db.prepare(`
+    SELECT runUuid, waypointUuid, MIN(timestamp) as timestamp
+    FROM tracks WHERE trailUuid = ? AND runUuid IN (${ph(runUuids)})
+    GROUP BY runUuid, waypointUuid
+  `).all(trailUuid, ...runUuids)
+
+  const wpTimesMap = new Map()
+  for (const t of allWpTimes) {
+    if (!wpTimesMap.has(t.runUuid)) wpTimesMap.set(t.runUuid, [])
+    wpTimesMap.get(t.runUuid).push(t)
+  }
+
+  const wpByUuid = new Map(waypoints.map(w => [w.waypointUuid, w]))
+
+  const rankings = runs.map(run => {
+    const user = userMap.get(run.userUuid)
+    const stats = statsMap.get(run.runUuid) || { reached: 0, lastTs: 0 }
+    const runWpTimes = (wpTimesMap.get(run.runUuid) || []).sort((a, b) => a.timestamp - b.timestamp)
+
+    const waypointTimes = runWpTimes.map(t => ({
+      waypointUuid: t.waypointUuid,
+      timestamp: t.timestamp,
+      timeFromStart: t.timestamp - run.startTime,
+    }))
+
+    const maxOrder = runWpTimes.reduce((max, t) => Math.max(max, wpByUuid.get(t.waypointUuid)?.order ?? -1), -1)
+    const nextWp = waypoints.find(w => w.order > maxOrder)
+    const nextWaypoint = nextWp
+      ? (nextWp.name || `WP ${nextWp.order}`)
+      : (run.isCompleted ? 'Finalizado' : '---')
+
+    return {
+      userUuid: run.userUuid,
+      userName: user?.nombre ?? 'Desconocido',
+      teamName: user?.team ?? '',
+      waypointsReached: stats.reached,
+      totalWaypoints,
+      lastWaypointTime: stats.lastTs ?? 0,
+      totalTime: run.totalTime,
+      isCompleted: run.isCompleted === 1,
+      isAbandoned: run.isAbandoned === 1,
+      sos: run.sos === 1,
+      activityType: user?.activityType || 'runner',
+      waypointTimes,
+      nextWaypoint,
+    }
+  })
 
   rankings.sort((a, b) => {
     if (b.waypointsReached !== a.waypointsReached) return b.waypointsReached - a.waypointsReached
@@ -38,49 +104,6 @@ function queryRuns(db, trailUuid, teamUuid, sessionUuid) {
     `).all(trailUuid, teamUuid)
   }
   return db.prepare('SELECT * FROM race_runs WHERE trailUuid = ?').all(trailUuid)
-}
-
-function buildRankEntry(db, run, trailUuid, totalWaypoints) {
-  const user = db.prepare('SELECT nombre, team, activityType FROM users WHERE uuid = ?').get(run.userUuid)
-  const reached = db.prepare('SELECT COUNT(DISTINCT waypointUuid) as c FROM tracks WHERE runUuid = ? AND trailUuid = ?').get(run.runUuid, trailUuid).c
-  const lastTrack = db.prepare('SELECT MAX(timestamp) as t FROM tracks WHERE runUuid = ? AND trailUuid = ?').get(run.runUuid, trailUuid)
-  const nextWaypoint = db.prepare(`
-    SELECT name, "order" FROM waypoints
-    WHERE trailUuid = ? AND "order" > (
-      SELECT COALESCE(MAX(w."order"), -1)
-      FROM tracks t JOIN waypoints w ON t.waypointUuid = w.waypointUuid
-      WHERE t.runUuid = ?
-    )
-    ORDER BY "order" ASC LIMIT 1
-  `).get(trailUuid, run.runUuid)
-
-  const waypointTracks = db.prepare(
-    'SELECT waypointUuid, MIN(timestamp) as timestamp FROM tracks WHERE runUuid = ? AND trailUuid = ? GROUP BY waypointUuid ORDER BY timestamp ASC'
-  ).all(run.runUuid, trailUuid)
-
-  const waypointTimes = waypointTracks.map(t => ({
-    waypointUuid: t.waypointUuid,
-    timestamp: t.timestamp,
-    timeFromStart: t.timestamp - run.startTime
-  }))
-
-  return {
-    userUuid: run.userUuid,
-    userName: user?.nombre ?? 'Desconocido',
-    teamName: user?.team ?? '',
-    waypointsReached: reached,
-    totalWaypoints,
-    lastWaypointTime: lastTrack?.t ?? 0,
-    totalTime: run.totalTime,
-    isCompleted: run.isCompleted === 1,
-    isAbandoned: run.isAbandoned === 1,
-    sos: run.sos === 1,
-    activityType: user?.activityType || 'runner',
-    waypointTimes,
-    nextWaypoint: nextWaypoint
-      ? (nextWaypoint.name || `WP ${nextWaypoint.order}`)
-      : (run.isCompleted ? 'Finalizado' : '---')
-  }
 }
 
 module.exports = { computeRankings, latestSession }
