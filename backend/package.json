@@ -5,7 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "jest --runInBand --verbose",
     "test:api": "cucumber-js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "forceExit": true,
+    "setupFiles": ["<rootDir>/tests/jest.setup.js"]
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -20,6 +27,8 @@
   },
   "devDependencies": {
     "@cucumber/cucumber": "^11.2.0",
-    "chai": "^4.5.0"
+    "chai": "^4.5.0",
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }

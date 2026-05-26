@@ -10,22 +10,71 @@ interface WaypointDraft {
   radius: string
 }
 
-function parseGpx(text: string): WaypointDraft[] {
+interface GpxPoint {
+  lat: number
+  lon: number
+  name: string
+}
+
+function haversineM(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const R = 6371000
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLon = ((b.lon - a.lon) * Math.PI) / 180
+  const sinLat = Math.sin(dLat / 2)
+  const sinLon = Math.sin(dLon / 2)
+  const a2 = sinLat * sinLat + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLon * sinLon
+  return R * 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2))
+}
+
+function parseGpxPoints(text: string): GpxPoint[] {
   const parser = new DOMParser()
   const doc = parser.parseFromString(text, 'application/xml')
-  const points = Array.from(doc.querySelectorAll('trkpt, wpt, rtept'))
-  if (points.length === 0) return []
-  const step = Math.max(1, Math.floor(points.length / 20))
-  return points
-    .filter((_, i) => i % step === 0)
-    .slice(0, 20)
-    .map((pt, i) => ({
-      order: i + 1,
-      name: pt.querySelector('name')?.textContent ?? `WP ${i + 1}`,
-      lat: pt.getAttribute('lat') ?? '',
-      lon: pt.getAttribute('lon') ?? '',
-      radius: '50',
-    }))
+  return Array.from(doc.querySelectorAll('trkpt, wpt, rtept')).map((pt) => ({
+    lat: parseFloat(pt.getAttribute('lat') ?? '0'),
+    lon: parseFloat(pt.getAttribute('lon') ?? '0'),
+    name: pt.querySelector('name')?.textContent ?? '',
+  }))
+}
+
+function equidistantWaypoints(points: GpxPoint[], count: number): WaypointDraft[] {
+  const n = points.length
+  if (n === 0) return []
+  const safeCount = Math.max(2, Math.min(count, n))
+
+  if (safeCount <= 2 || n <= 2) {
+    const result: WaypointDraft[] = [
+      { order: 1, name: 'Largada', lat: String(points[0].lat), lon: String(points[0].lon), radius: '50' },
+    ]
+    if (n > 1)
+      result.push({ order: 2, name: 'Meta', lat: String(points[n - 1].lat), lon: String(points[n - 1].lon), radius: '50' })
+    return result
+  }
+
+  const cumDist: number[] = [0]
+  for (let i = 1; i < n; i++) {
+    cumDist.push(cumDist[i - 1] + haversineM(points[i - 1], points[i]))
+  }
+  const total = cumDist[n - 1]
+
+  const indices: number[] = [0]
+  for (let k = 1; k < safeCount - 1; k++) {
+    const target = (k / (safeCount - 1)) * total
+    let best = 1
+    for (let i = 2; i < n - 1; i++) {
+      if (Math.abs(cumDist[i] - target) < Math.abs(cumDist[best] - target)) best = i
+    }
+    indices.push(best)
+  }
+  indices.push(n - 1)
+
+  const unique = [...new Set(indices)]
+  return unique.map((idx, i) => ({
+    order: i + 1,
+    name: i === 0 ? 'Largada' : i === unique.length - 1 ? 'Meta' : (points[idx].name || `WP ${i + 1}`),
+    lat: String(points[idx].lat),
+    lon: String(points[idx].lon),
+    radius: '50',
+  }))
 }
 
 function SectionCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
@@ -48,6 +97,8 @@ export default function CreateRace() {
     { order: 1, name: 'Largada', lat: '', lon: '', radius: '50' },
     { order: 2, name: 'Meta', lat: '', lon: '', radius: '50' },
   ])
+  const [gpxPoints, setGpxPoints] = useState<GpxPoint[]>([])
+  const [waypointCount, setWaypointCount] = useState(10)
   const [gpxLoaded, setGpxLoaded] = useState(false)
   const [gpxName, setGpxName] = useState('')
   const [error, setError] = useState('')
@@ -58,11 +109,24 @@ export default function CreateRace() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
-      const wps = parseGpx(text)
-      if (wps.length > 0) { setWaypoints(wps); setGpxLoaded(true); setGpxName(file.name) }
-      else setError('No se encontraron puntos en el GPX. Ingresá los waypoints manualmente.')
+      const points = parseGpxPoints(text)
+      if (points.length > 0) {
+        setGpxPoints(points)
+        setWaypoints(equidistantWaypoints(points, waypointCount))
+        setGpxLoaded(true)
+        setGpxName(file.name)
+      } else {
+        setError('No se encontraron puntos en el GPX. Ingresá los waypoints manualmente.')
+      }
     }
     reader.readAsText(file)
+  }
+
+  const handleCountChange = (newCount: number) => {
+    setWaypointCount(newCount)
+    if (gpxLoaded && gpxPoints.length > 0) {
+      setWaypoints(equidistantWaypoints(gpxPoints, newCount))
+    }
   }
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,6 +224,21 @@ export default function CreateRace() {
 
         {/* Waypoints */}
         <SectionCard title="Waypoints" subtitle="Subí un GPX o ingresá las coordenadas manualmente">
+          {/* Waypoint count */}
+          <div className="flex items-center gap-3 mb-4">
+            <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+              Cantidad de waypoints
+            </label>
+            <input
+              type="number"
+              min="2"
+              max="50"
+              value={waypointCount}
+              onChange={(e) => handleCountChange(Math.max(2, parseInt(e.target.value) || 2))}
+              className="input-base w-24 py-1.5 text-sm"
+            />
+            <span className="text-xs text-slate-400">mín. 2 (inicio + fin siempre incluidos)</span>
+          </div>
           {/* Drop zone */}
           <div
             onClick={() => fileRef.current?.click()}
@@ -184,7 +263,7 @@ export default function CreateRace() {
                   <p className="font-semibold text-green-700 text-sm">{gpxName}</p>
                   <p className="text-green-600 text-xs">{waypoints.length} waypoints importados</p>
                 </div>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setGpxLoaded(false); setWaypoints([{ order: 1, name: 'Largada', lat: '', lon: '', radius: '50' }, { order: 2, name: 'Meta', lat: '', lon: '', radius: '50' }]) }} className="text-slate-400 hover:text-slate-600 ml-auto">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setGpxLoaded(false); setGpxPoints([]); setWaypoints([{ order: 1, name: 'Largada', lat: '', lon: '', radius: '50' }, { order: 2, name: 'Meta', lat: '', lon: '', radius: '50' }]) }} className="text-slate-400 hover:text-slate-600 ml-auto">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>

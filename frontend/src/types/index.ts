@@ -73,6 +73,16 @@ export interface RaceSession {
   runnerCount: number
 }
 
+export interface RaceEvent {
+  runUuid: string
+  userUuid: string
+  userName: string
+  teamName: string
+  type: 'completed' | 'abandoned' | 'sos'
+  endTime: number | null
+  startTime: number | null
+}
+
 export interface AuthResponse {
   token: string
   user: User

@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { trailsApi, rankingsApi, racesApi } from '../services/api'
-import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate, onRaceEvent, offRaceEvent } from '../services/socket'
+import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate, onRaceEvent, offRaceEvent, onSocketConnect, offSocketConnect, onSocketDisconnect, offSocketDisconnect, onSocketError, offSocketError } from '../services/socket'
 import { useAuthStore } from '../store/authStore'
 import type { TrailWithWaypoints, LivePosition, RankingEntry, RaceSession, Waypoint } from '../types'
 
@@ -71,6 +71,7 @@ function LeaderboardPanel({
   onTeamFilterChange,
   userTeamUuid,
   waypoints,
+  onUserSelect,
 }: {
   rankings: RankingEntry[]
   positions: Map<string, LivePosition>
@@ -78,6 +79,7 @@ function LeaderboardPanel({
   onTeamFilterChange: (v: 'general' | 'team') => void
   userTeamUuid: string | undefined
   waypoints: Waypoint[]
+  onUserSelect: (uuid: string | null) => void
 }) {
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
 
@@ -122,7 +124,7 @@ function LeaderboardPanel({
                   key={r.userUuid}
                   onClick={() => {
                     setExpandedUser(isExpanded ? null : r.userUuid)
-                    setSelectedUserPath(isExpanded ? null : r.userUuid)
+                    onUserSelect(isExpanded ? null : r.userUuid)
                   }}
                   className={`rounded-xl border p-3 transition-all cursor-pointer ${
                     r.sos ? 'border-red-500 bg-red-50 ring-2 ring-red-500 animate-pulse' :
@@ -209,6 +211,7 @@ export default function LiveRace() {
   const [trail, setTrail] = useState<TrailWithWaypoints | null>(null)
   const [sessions, setSessions] = useState<RaceSession[]>([])
   const [activeSession, setActiveSession] = useState<string | null>(null)
+  const [userPickedSession, setUserPickedSession] = useState(false)
   const [positions, setPositions] = useState<Map<string, LivePosition>>(new Map())
   const [rankings, setRankings] = useState<RankingEntry[]>([])
   const [connected, setConnected] = useState(false)
@@ -220,6 +223,7 @@ export default function LiveRace() {
   const [notifications, setNotifications] = useState<{ id: string, message: string, type: string }[]>([])
   const rankTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const posTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const seenEvents = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!id || !selectedUserPath) {
@@ -236,14 +240,22 @@ export default function LiveRace() {
     trailsApi.details(id).then((r) => setTrail(r.data)).finally(() => setLoading(false))
   }, [id])
 
-  // Load sessions and pick the latest
+  // Load sessions on mount + auto-refresh every 30s to detect new race sessions
   useEffect(() => {
     if (!id) return
-    racesApi.sessions(id).then((r) => {
-      setSessions(r.data)
-      if (r.data.length > 0) setActiveSession(r.data[0].sessionUuid)
-    }).catch(() => {})
-  }, [id])
+    const refresh = () => {
+      racesApi.sessions(id).then((r) => {
+        setSessions(r.data)
+        // Only auto-select session if user hasn't manually picked one
+        if (!userPickedSession && r.data.length > 0) {
+          setActiveSession(r.data[0].sessionUuid)
+        }
+      }).catch(() => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 30_000)
+    return () => clearInterval(timer)
+  }, [id, userPickedSession])
 
   // Poll rankings (session + team filter aware)
   useEffect(() => {
@@ -277,40 +289,60 @@ export default function LiveRace() {
     return () => { if (posTimer.current) clearInterval(posTimer.current) }
   }, [id, activeSession])
 
-  // Socket.IO — real-time GPS updates
+  // Socket.IO — real-time updates + connection tracking
   useEffect(() => {
     if (!id || !token) return
+
+    const onConnect = () => setConnected(true)
+    const onDisconnect = () => setConnected(false)
+    const onError = (err: Error) => {
+      console.error('[Socket] connect_error:', err.message)
+      setConnected(false)
+    }
+
     const onPos = (p: LivePosition) => {
-      setConnected(true)
       setPositions((m) => {
         const existing = m.get(p.userUuid)
         if (existing && existing.timestamp > p.timestamp) return m
         return new Map(m).set(p.userUuid, { ...p, isOnline: true })
       })
     }
+
     const onRank = (r: RankingEntry[]) => setRankings(r)
+
     const onEvent = (e: { type: string, userName: string }) => {
-      const id = Math.random().toString(36).slice(2)
+      const dedupeKey = `${e.userName}:${e.type}`
+      if (seenEvents.current.has(dedupeKey)) return
+      seenEvents.current.add(dedupeKey)
+
+      const notifId = Math.random().toString(36).slice(2)
       const message = e.type === 'sos'
         ? `🚨 EMERGENCIA: ${e.userName} ha activado el S.O.S!`
         : e.type === 'completed'
         ? `🏆 ${e.userName} ha finalizado la carrera!`
         : `🛑 ${e.userName} ha abandonado.`
 
-      setNotifications(prev => [...prev, { id, message, type: e.type }])
+      setNotifications(prev => [...prev, { id: notifId, message, type: e.type }])
       setTimeout(() => {
-        setNotifications(prev => prev.filter(n => n.id !== id))
+        setNotifications(prev => prev.filter(n => n.id !== notifId))
       }, 5000)
     }
 
+    onSocketConnect(onConnect)
+    onSocketDisconnect(onDisconnect)
+    onSocketError(onError)
     onPositionUpdate(onPos)
     onRaceUpdate(onRank)
     onRaceEvent(onEvent)
     joinRace(id, token)
+
     return () => {
-      offPositionUpdate(onPos);
-      offRaceUpdate(onRank);
-      offRaceEvent(onEvent);
+      offSocketConnect(onConnect)
+      offSocketDisconnect(onDisconnect)
+      offSocketError(onError)
+      offPositionUpdate(onPos)
+      offRaceUpdate(onRank)
+      offRaceEvent(onEvent)
       leaveRace(id)
     }
   }, [id, token])
@@ -363,7 +395,7 @@ export default function LiveRace() {
           {sessions.length > 1 && (
             <select
               value={activeSession ?? ''}
-              onChange={(e) => setActiveSession(e.target.value)}
+              onChange={(e) => { setActiveSession(e.target.value); setUserPickedSession(true) }}
               className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-700 bg-white"
             >
               {sessions.map((s, i) => (
@@ -388,6 +420,9 @@ export default function LiveRace() {
             {connected ? `${onlineCount} GPS · ${positions.size} total` : `${positions.size} rastreados`}
           </span>
 
+          <Link to={`/races/${id}/notifications`} className="hidden sm:inline-flex btn-ghost text-sm py-1.5 px-3">
+            Eventos
+          </Link>
           <Link to={`/races/${id}/results`} className="hidden sm:inline-flex btn-ghost text-sm py-1.5 px-3">
             Resultados
           </Link>
@@ -404,9 +439,25 @@ export default function LiveRace() {
               tab === t ? 'text-green-700 border-b-2 border-green-600' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            {t === 'map' ? '🗺️ Mapa' : `🏆 Clasificación ${rankings.length > 0 ? `(${rankings.length})` : ''}`}
+            {t === 'map' ? '🗺️ Mapa' : `🏆 Ranking ${rankings.length > 0 ? `(${rankings.length})` : ''}`}
           </button>
         ))}
+        <div className="w-px bg-slate-100 my-1.5" />
+        <Link
+          to={`/races/${id}/notifications`}
+          className="px-3 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          Eventos
+        </Link>
+        <Link
+          to={`/races/${id}/results`}
+          className="px-3 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+        >
+          Resultados
+        </Link>
       </div>
 
       {/* Main content */}
@@ -488,6 +539,7 @@ export default function LiveRace() {
             onTeamFilterChange={setTeamFilter}
             userTeamUuid={user?.uuid_team}
             waypoints={trail?.waypoints || []}
+            onUserSelect={setSelectedUserPath}
           />
         </div>
       </div>
