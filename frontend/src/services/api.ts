@@ -73,4 +73,6 @@ export const racesApi = {
     api.get<import('../types').RaceSession[]>('/races/sessions', { params: { trailUuid } }),
   livePositions: (trailUuid: string, sessionUuid?: string) =>
     api.get<import('../types').LivePosition[]>('/races/live', { params: { trailUuid, sessionUuid } }),
+  routeHistory: (trailId: string, userUuid: string) =>
+    api.get<any[]>(`/races/${trailId}/route-history/${userUuid}`),
 }

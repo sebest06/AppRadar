@@ -14,5 +14,6 @@ data class WearRaceRunEntity(
     val totalTime: Long = 0L,
     val isCompleted: Boolean = false,
     val isAbandoned: Boolean = false,
-    val sessionUuid: String? = null
+    val sessionUuid: String? = null,
+    val isSynced: Boolean = false
 )

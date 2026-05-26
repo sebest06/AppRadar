@@ -54,6 +54,9 @@ class ActiveTrailViewModel @Inject constructor(
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused
 
+    private val _isSos = MutableStateFlow(false)
+    val isSos: StateFlow<Boolean> = _isSos
+
     private val _elapsedTimeMillis = MutableStateFlow(0L)
     val elapsedTimeMillis: StateFlow<Long> = _elapsedTimeMillis
 
@@ -186,11 +189,21 @@ class ActiveTrailViewModel @Inject constructor(
         }
     }
 
+    fun toggleSos() {
+        _isSos.value = !_isSos.value
+        saveRaceRun(_isRaceStarted.value && reachedWaypoints.value.size == waypoints.value.size)
+    }
+
     private fun startTimer() {
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (true) {
                 _elapsedTimeMillis.value = accumulatedTimeMillis + (System.currentTimeMillis() - lastStartTimeMillis)
+                // Aprovechamos el timer para intentar sincronizar datos pendientes periódicamente
+                if (_isSos.value) {
+                    saveRaceRun(reachedWaypoints.value.size == waypoints.value.size)
+                }
+                repository.uploadUnsyncedData()
                 delay(1000)
             }
         }
@@ -250,6 +263,7 @@ class ActiveTrailViewModel @Inject constructor(
 
     private fun saveRaceRun(isCompleted: Boolean, isAbandoned: Boolean = false, totalTime: Long = 0L) {
         viewModelScope.launch {
+            val userIcon = userPreferences.userIconName.firstOrNull() ?: "runner"
             val run = RaceRunEntity(
                 runUuid = currentRunUuid,
                 trailUuid = _trail.value?.trailUuid ?: "",
@@ -260,19 +274,23 @@ class ActiveTrailViewModel @Inject constructor(
                 totalTime = totalTime,
                 isCompleted = isCompleted,
                 isAbandoned = isAbandoned,
-                sessionUuid = currentSessionUuid
+                sos = _isSos.value,
+                sessionUuid = currentSessionUuid,
+                isSynced = false // Aseguramos que se intente sincronizar
             )
             repository.saveRaceRun(run)
 
-            if (!isCompleted && !isAbandoned && currentSessionUuid == null) {
+            if (isCompleted || isAbandoned || _isSos.value) {
+                // Forzamos sincronización inmediata al finalizar, abandonar o SOS
+                repository.uploadUnsyncedData()
+            } else if (currentSessionUuid == null) {
+                // Si es el inicio, intentamos obtener el sessionUuid
                 val sessionUuid = repository.uploadRaceRun(run)
                 if (sessionUuid != null) {
                     currentSessionUuid = sessionUuid
-                    repository.saveRaceRun(run.copy(sessionUuid = sessionUuid))
+                    repository.saveRaceRun(run.copy(sessionUuid = sessionUuid, isSynced = true))
                     userPreferences.setActiveRace(_trail.value?.trailUuid, currentRunUuid, initialStartTimeMillis, sessionUuid)
                 }
-            } else if (isCompleted) {
-                repository.uploadRaceRun(run)
             }
         }
     }

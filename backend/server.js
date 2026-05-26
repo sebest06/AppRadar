@@ -37,7 +37,21 @@ db.exec(`
     nombre TEXT NOT NULL,
     team TEXT NOT NULL DEFAULT '',
     uuid_team TEXT NOT NULL DEFAULT '',
-    role TEXT NOT NULL DEFAULT 'runner'
+    role TEXT NOT NULL DEFAULT 'runner',
+    activityType TEXT NOT NULL DEFAULT 'runner',
+    teamStatus TEXT DEFAULT 'accepted'
+  );
+
+  CREATE TABLE IF NOT EXISTS categories (
+    categoryUuid TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS users_categories (
+    userUuid TEXT NOT NULL,
+    categoryUuid TEXT NOT NULL,
+    PRIMARY KEY (userUuid, categoryUuid)
   );
 
   CREATE TABLE IF NOT EXISTS trails (
@@ -73,7 +87,8 @@ db.exec(`
     totalTime INTEGER DEFAULT 0,
     isCompleted INTEGER DEFAULT 0,
     isAbandoned INTEGER DEFAULT 0,
-    sessionUuid TEXT DEFAULT NULL
+    sessionUuid TEXT DEFAULT NULL,
+    sos INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS tracks (
@@ -98,6 +113,8 @@ db.exec(`
 
 // Migrations
 try { db.exec(`ALTER TABLE users ADD COLUMN teamStatus TEXT DEFAULT 'accepted'`) } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN activityType TEXT DEFAULT 'runner'`) } catch (e) {}
+try { db.exec(`ALTER TABLE race_runs ADD COLUMN sos INTEGER DEFAULT 0`) } catch (e) {}
 try { db.exec(`ALTER TABLE trails ADD COLUMN teamUuid TEXT DEFAULT NULL`) } catch (e) {}
 try { db.exec(`ALTER TABLE race_runs ADD COLUMN isAbandoned INTEGER DEFAULT 0`) } catch (e) {}
 try { db.exec(`ALTER TABLE race_runs ADD COLUMN sessionUuid TEXT DEFAULT NULL`) } catch (e) {}
@@ -167,7 +184,7 @@ app.post('/team/requests/:userUuid/reject', authMiddleware, requireRole('organiz
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 app.post('/auth/register', (req, res) => {
-  const { user, passw, nombre, team, role, uuid_team: inputTeamUuid } = req.body
+  const { user, passw, nombre, team, role, activityType, uuid_team: inputTeamUuid } = req.body
   if (!user || !passw || !nombre) return res.status(400).json({ error: 'Faltan campos requeridos' })
   if (passw.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
 
@@ -177,7 +194,8 @@ app.post('/auth/register', (req, res) => {
   const uuid = uuidv4()
   const hash = bcrypt.hashSync(passw, 10)
   const userRole = ['runner', 'organizer', 'spectator'].includes(role) ? role : 'runner'
-  
+  const finalActivityType = ['runner', 'bike', 'car'].includes(activityType) ? activityType : 'runner'
+
   let finalTeamUuid = uuidv4()
   let finalTeamName = team || ''
   let teamStatus = 'accepted'
@@ -192,11 +210,11 @@ app.post('/auth/register', (req, res) => {
   }
 
   db.prepare(`
-    INSERT INTO users (uuid, user, passw, nombre, team, uuid_team, role, teamStatus)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(uuid, user, hash, nombre, finalTeamName, finalTeamUuid, userRole, teamStatus)
+    INSERT INTO users (uuid, user, passw, nombre, team, uuid_team, role, activityType, teamStatus)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(uuid, user, hash, nombre, finalTeamName, finalTeamUuid, userRole, finalActivityType, teamStatus)
 
-  const newUser = { uuid, user, nombre, team: finalTeamName, uuid_team: finalTeamUuid, role: userRole, teamStatus }
+  const newUser = { uuid, user, nombre, team: finalTeamName, uuid_team: finalTeamUuid, role: userRole, activityType: finalActivityType, teamStatus }
   const token = jwt.sign({ uuid, user, role: userRole, uuid_team: finalTeamUuid, teamStatus }, JWT_SECRET, { expiresIn: '7d' })
   res.status(201).json({ token, user: newUser })
 })
@@ -351,21 +369,35 @@ app.post('/runs/upload', authMiddleware, (req, res) => {
     }
 
     db.prepare(`
-      INSERT INTO race_runs (runUuid, trailUuid, userUuid, startTime, endTime, totalTime, isCompleted, isAbandoned, sessionUuid)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(run.runUuid, run.trailUuid, run.userUuid, run.startTime, run.endTime, run.totalTime, run.isCompleted ? 1 : 0, run.isAbandoned ? 1 : 0, sessionUuid)
+      INSERT INTO race_runs (runUuid, trailUuid, userUuid, startTime, endTime, totalTime, isCompleted, isAbandoned, sessionUuid, sos)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(run.runUuid, run.trailUuid, run.userUuid, run.startTime, run.endTime, run.totalTime, run.isCompleted ? 1 : 0, run.isAbandoned ? 1 : 0, sessionUuid, run.sos ? 1 : 0)
   } else {
-    db.prepare('UPDATE race_runs SET sessionUuid = ?, isCompleted = ?, isAbandoned = ?, startTime = ?, endTime = ?, totalTime = ? WHERE runUuid = ?').run(
+    db.prepare('UPDATE race_runs SET sessionUuid = ?, isCompleted = ?, isAbandoned = ?, startTime = ?, endTime = ?, totalTime = ?, sos = ? WHERE runUuid = ?').run(
       sessionUuid,
       run.isCompleted ? 1 : 0,
       run.isAbandoned ? 1 : 0,
       run.startTime || existing.startTime,
       run.endTime,
       run.totalTime,
+      run.sos ? 1 : 0,
       run.runUuid
     )
   }
   res.status(200).json({ ok: true, sessionUuid })
+
+  // Emitir actualización de ranking si se completó o abandonó
+  const rankings = computeRankings(run.trailUuid, null, sessionUuid)
+  io.to(`race:${run.trailUuid}`).emit('race_update', rankings)
+
+  if (run.isCompleted || run.isAbandoned || run.sos) {
+    const user = db.prepare('SELECT nombre FROM users WHERE uuid = ?').get(run.userUuid)
+    io.to(`race:${run.trailUuid}`).emit('race_event', {
+      type: run.sos ? 'sos' : (run.isCompleted ? 'completed' : 'abandoned'),
+      userName: user?.nombre || 'Corredor',
+      trailUuid: run.trailUuid
+    })
+  }
 })
 
 app.post('/tracks/upload', authMiddleware, (req, res) => {
@@ -390,6 +422,19 @@ app.post('/tracks/upload', authMiddleware, (req, res) => {
       : null
     const rankings = computeRankings(trailUuid, null, sessionRow?.sessionUuid ?? null)
     io.to(`race:${trailUuid}`).emit('race_update', rankings)
+
+    // Notificaciones de fin de carrera
+    tracks.forEach(t => {
+      const run = db.prepare('SELECT * FROM race_runs WHERE runUuid = ?').get(t.runUuid)
+      if (run && (run.isCompleted || run.isAbandoned)) {
+        const user = db.prepare('SELECT nombre FROM users WHERE uuid = ?').get(run.userUuid)
+        io.to(`race:${trailUuid}`).emit('race_event', {
+          type: run.isCompleted ? 'completed' : 'abandoned',
+          userName: user?.nombre || 'Corredor',
+          trailUuid: trailUuid
+        })
+      }
+    })
   }
 })
 
@@ -426,13 +471,35 @@ function computeRankings(trailUuid, teamUuid, sessionUuid = null) {
     .get(trailUuid)?.c ?? 0
 
   const rankings = runs.map((run) => {
-    const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(run.userUuid)
+    const user = db.prepare('SELECT nombre, team, activityType FROM users WHERE uuid = ?').get(run.userUuid)
     const reached = db
       .prepare('SELECT COUNT(*) as c FROM tracks WHERE runUuid = ? AND trailUuid = ?')
       .get(run.runUuid, trailUuid).c
     const lastTrack = db
       .prepare('SELECT MAX(timestamp) as t FROM tracks WHERE runUuid = ? AND trailUuid = ?')
       .get(run.runUuid, trailUuid)
+
+    const nextWaypoint = db
+      .prepare(`
+        SELECT name, "order" FROM waypoints
+        WHERE trailUuid = ? AND "order" > (
+          SELECT COALESCE(MAX(w."order"), -1)
+          FROM tracks t
+          JOIN waypoints w ON t.waypointUuid = w.waypointUuid
+          WHERE t.runUuid = ?
+        )
+        ORDER BY "order" ASC LIMIT 1
+      `).get(trailUuid, run.runUuid)
+
+    const waypointTracks = db
+      .prepare('SELECT waypointUuid, timestamp FROM tracks WHERE runUuid = ? AND trailUuid = ? ORDER BY timestamp ASC')
+      .all(run.runUuid, trailUuid)
+
+    const waypointTimes = waypointTracks.map(t => ({
+      waypointUuid: t.waypointUuid,
+      timestamp: t.timestamp,
+      timeFromStart: t.timestamp - run.startTime
+    }))
 
     return {
       userUuid: run.userUuid,
@@ -444,6 +511,10 @@ function computeRankings(trailUuid, teamUuid, sessionUuid = null) {
       totalTime: run.totalTime,
       isCompleted: run.isCompleted === 1,
       isAbandoned: run.isAbandoned === 1,
+      sos: run.sos === 1,
+      activityType: user?.activityType || 'runner',
+      waypointTimes,
+      nextWaypoint: nextWaypoint ? (nextWaypoint.name || `WP ${nextWaypoint.order}`) : (run.isCompleted ? 'Finalizado' : '---')
     }
   })
 
@@ -477,6 +548,31 @@ app.get('/races/sessions', (req, res) => {
   res.json(sessions)
 })
 
+app.get('/races/:trailId/route-history/:userUuid', (req, res) => {
+  const { trailId, userUuid } = req.params
+  const history = db.prepare(`
+    SELECT lat, lon, timestamp FROM gps_positions
+    WHERE trailUuid = ? AND userUuid = ?
+    ORDER BY timestamp ASC
+  `).all(trailId, userUuid)
+  res.json(history)
+})
+
+app.get('/rankings', (req, res) => {
+  const { trailUuid, teamUuid, sessionUuid: reqSession, categoryUuid } = req.query
+  if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
+  const sessionUuid = reqSession || latestSession(trailUuid)
+
+  let rankings = computeRankings(trailUuid, teamUuid || null, sessionUuid)
+
+  if (categoryUuid) {
+    const usersInCategory = db.prepare('SELECT userUuid FROM users_categories WHERE categoryUuid = ?').all(categoryUuid).map(u => u.userUuid)
+    rankings = rankings.filter(r => usersInCategory.includes(r.userUuid))
+  }
+
+  res.json(rankings)
+})
+
 app.get('/races/live', (req, res) => {
   const { trailUuid, sessionUuid: reqSession } = req.query
   if (!trailUuid) return res.status(400).json({ error: 'trailUuid requerido' })
@@ -489,7 +585,7 @@ app.get('/races/live', (req, res) => {
   const now = Date.now()
 
   const positions = runs.map((run) => {
-    const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(run.userUuid)
+    const user = db.prepare('SELECT nombre, team, activityType FROM users WHERE uuid = ?').get(run.userUuid)
 
     const gps = db.prepare(`
       SELECT lat, lon, timestamp FROM gps_positions
@@ -498,7 +594,7 @@ app.get('/races/live', (req, res) => {
     `).get(run.userUuid, trailUuid)
 
     if (gps && (now - gps.timestamp) <= ONLINE_MS) {
-      return { userUuid: run.userUuid, userName: user?.nombre ?? 'Desconocido', teamName: user?.team ?? '', lat: gps.lat, lon: gps.lon, timestamp: gps.timestamp, isOnline: true }
+      return { userUuid: run.userUuid, userName: user?.nombre ?? 'Desconocido', teamName: user?.team ?? '', activityType: user?.activityType || 'runner', sos: run.sos === 1, lat: gps.lat, lon: gps.lon, timestamp: gps.timestamp, isOnline: true }
     }
 
     const lastWp = db.prepare(`
@@ -509,27 +605,36 @@ app.get('/races/live', (req, res) => {
     `).get(run.runUuid, trailUuid)
 
     if (!lastWp) return null
-    return { userUuid: run.userUuid, userName: user?.nombre ?? 'Desconocido', teamName: user?.team ?? '', lat: lastWp.lat, lon: lastWp.lon, timestamp: lastWp.timestamp, isOnline: false }
+    return { userUuid: run.userUuid, userName: user?.nombre ?? 'Desconocido', teamName: user?.team ?? '', activityType: user?.activityType || 'runner', sos: run.sos === 1, lat: lastWp.lat, lon: lastWp.lon, timestamp: lastWp.timestamp, isOnline: false }
   }).filter(Boolean)
 
   res.json(positions)
 })
 
 app.post('/gps/upload', authMiddleware, (req, res) => {
-  const { trailUuid, lat, lon, accuracy, timestamp } = req.body
+  const { trailUuid, lat, lon, accuracy, timestamp, activityType } = req.body
   if (!trailUuid || lat == null || lon == null) return res.status(400).json({ error: 'Faltan datos' })
   const ts = timestamp || Date.now()
+
+  // Actualizar actividad del usuario si viene en el GPS
+  if (activityType) {
+    db.prepare('UPDATE users SET activityType = ? WHERE uuid = ?').run(activityType, req.user.uuid)
+  }
 
   db.prepare(`
     INSERT INTO gps_positions (userUuid, trailUuid, lat, lon, accuracy, timestamp)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(req.user.uuid, trailUuid, lat, lon, accuracy ?? null, ts)
 
-  const user = db.prepare('SELECT nombre, team FROM users WHERE uuid = ?').get(req.user.uuid)
+  const user = db.prepare('SELECT nombre, team, activityType FROM users WHERE uuid = ?').get(req.user.uuid)
+  const run = db.prepare('SELECT sos FROM race_runs WHERE userUuid = ? AND trailUuid = ? AND isCompleted = 0 AND isAbandoned = 0').get(req.user.uuid, trailUuid)
+
   io.to(`race:${trailUuid}`).emit('position_broadcast', {
     userUuid: req.user.uuid,
     userName: user?.nombre ?? req.user.user,
     teamName: user?.team ?? '',
+    activityType: user?.activityType || 'runner',
+    sos: run?.sos === 1,
     lat, lon, accuracy, timestamp: ts,
     isOnline: true,
   })

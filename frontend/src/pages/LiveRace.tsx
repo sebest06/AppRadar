@@ -4,9 +4,9 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { trailsApi, rankingsApi, racesApi } from '../services/api'
-import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate } from '../services/socket'
+import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate, onRaceEvent, offRaceEvent } from '../services/socket'
 import { useAuthStore } from '../store/authStore'
-import type { TrailWithWaypoints, LivePosition, RankingEntry, RaceSession } from '../types'
+import type { TrailWithWaypoints, LivePosition, RankingEntry, RaceSession, Waypoint } from '../types'
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -15,17 +15,29 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const runnerIcon = (name: string, isOnline: boolean) =>
-  L.divIcon({
-    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-      <div style="background:${isOnline ? '#16a34a' : '#64748b'};color:white;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:17px;border:2.5px solid white;box-shadow:0 2px 8px rgba(0,0,0,.25)">🏃</div>
-      <div style="background:${isOnline ? '#0f172a' : '#475569'};color:white;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis">${name}</div>
-      <div style="background:${isOnline ? '#16a34a' : '#94a3b8'};color:white;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${isOnline ? '● GPS' : '◎ WP'}</div>
+const runnerIcon = (name: string, isOnline: boolean, status?: 'completed' | 'abandoned' | 'sos', activityType?: 'runner' | 'bike' | 'car') => {
+  const isSos = status === 'sos'
+  const color = isSos ? '#ef4444' : status === 'completed' ? '#2563eb' : status === 'abandoned' ? '#dc2626' : isOnline ? '#16a34a' : '#64748b'
+
+  const iconMap = {
+    runner: '🏃',
+    bike: '🚲',
+    car: '🚗'
+  }
+
+  const emoji = isSos ? '🆘' : status === 'completed' ? '🏆' : status === 'abandoned' ? '🛑' : iconMap[activityType || 'runner']
+
+  return L.divIcon({
+    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px" class="${isSos ? 'sos-animate' : ''}">
+      <div style="background:${color};color:white;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:17px;border:2.5px solid white;box-shadow:0 2px 8px rgba(0,0,0,.25)">${emoji}</div>
+      <div style="background:${status && !isSos ? color : (isOnline ? '#0f172a' : '#475569')};color:white;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis">${name}</div>
+      <div style="background:${isSos ? '#ef4444' : (isOnline ? '#16a34a' : '#94a3b8')};color:white;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${isSos ? 'S.O.S' : (status ? status.toUpperCase() : (isOnline ? '● GPS' : '◎ WP'))}</div>
     </div>`,
     className: '',
     iconSize: [60, 58],
     iconAnchor: [30, 17],
   })
+}
 
 const wpIcon = (order: number) =>
   L.divIcon({
@@ -58,13 +70,17 @@ function LeaderboardPanel({
   teamFilter,
   onTeamFilterChange,
   userTeamUuid,
+  waypoints,
 }: {
   rankings: RankingEntry[]
   positions: Map<string, LivePosition>
   teamFilter: 'general' | 'team'
   onTeamFilterChange: (v: 'general' | 'team') => void
   userTeamUuid: string | undefined
+  waypoints: Waypoint[]
 }) {
+  const [expandedUser, setExpandedUser] = useState<string | null>(null)
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {userTeamUuid && (
@@ -99,23 +115,39 @@ function LeaderboardPanel({
               const pos = positions.get(r.userUuid)
               const pct = r.totalWaypoints > 0 ? (r.waypointsReached / r.totalWaypoints) * 100 : 0
               const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+              const isExpanded = expandedUser === r.userUuid
+
               return (
                 <div
                   key={r.userUuid}
-                  className={`rounded-xl border p-3 transition-all ${
-                    pos?.isOnline ? 'border-green-200 bg-green-50' : pos ? 'border-amber-100 bg-amber-50' : 'border-slate-100 bg-slate-50'
-                  }`}
+                  onClick={() => {
+                    setExpandedUser(isExpanded ? null : r.userUuid)
+                    setSelectedUserPath(isExpanded ? null : r.userUuid)
+                  }}
+                  className={`rounded-xl border p-3 transition-all cursor-pointer ${
+                    r.sos ? 'border-red-500 bg-red-50 ring-2 ring-red-500 animate-pulse' :
+                    r.isCompleted ? 'border-blue-200 bg-blue-50' :
+                    r.isAbandoned ? 'border-red-200 bg-red-50' :
+                    pos?.isOnline ? 'border-green-200 bg-green-50' :
+                    pos ? 'border-amber-100 bg-amber-50' :
+                    'border-slate-100 bg-slate-50'
+                  } ${isExpanded ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`}
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="text-base w-6 text-center flex-shrink-0">
-                      {medal ?? <span className="text-xs font-bold text-slate-400">{i + 1}</span>}
+                      {r.sos ? '🆘' : r.isCompleted ? '🏆' : r.isAbandoned ? '🛑' : medal ?? <span className="text-xs font-bold text-slate-400">{i + 1}</span>}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900 text-sm truncate">{r.userName}</p>
+                      <p className={`font-semibold text-sm truncate ${r.isCompleted ? 'text-blue-900' : r.isAbandoned ? 'text-red-900' : 'text-slate-900'}`}>{r.userName}</p>
                       <p className="text-xs text-slate-400 truncate">{r.teamName}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      {pos?.isOnline && (
+                      {!r.isCompleted && !r.isAbandoned && (
+                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">
+                          Próximo: {r.nextWaypoint}
+                        </span>
+                      )}
+                      {!r.isCompleted && !r.isAbandoned && pos?.isOnline && (
                         <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
                           <span className="relative flex h-1.5 w-1.5">
                             <span className="live-dot relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"/>
@@ -123,25 +155,44 @@ function LeaderboardPanel({
                           {timeAgo(pos.timestamp)}
                         </span>
                       )}
-                      {pos && !pos.isOnline && (
+                      {!r.isCompleted && !r.isAbandoned && pos && !pos.isOnline && (
                         <span className="text-xs text-amber-600 font-medium">◎ WP · {timeAgo(pos.timestamp)}</span>
                       )}
                       {r.isCompleted && (
-                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓ Fin</span>
+                        <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Finalizado</span>
                       )}
                       {r.isAbandoned && (
-                        <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">✕ Abandonó</span>
+                        <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Abandonó</span>
                       )}
                     </div>
                   </div>
 
                   <div className="mt-2.5 flex items-center gap-2 text-xs text-slate-500">
                     <div className="flex-1 bg-slate-200 rounded-full h-1.5">
-                      <div className={`${r.isAbandoned ? 'bg-red-400' : 'bg-green-500'} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                      <div className={`${r.isAbandoned ? 'bg-red-400' : r.isCompleted ? 'bg-blue-500' : 'bg-green-500'} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
                     </div>
                     <span className="flex-shrink-0 font-medium">{r.waypointsReached}/{r.totalWaypoints} WP</span>
                     <span className="flex-shrink-0 font-mono">{formatTime(r.totalTime)}</span>
                   </div>
+
+                  {isExpanded && r.waypointTimes && r.waypointTimes.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-200/50 space-y-1.5">
+                      {waypoints.map((wp) => {
+                        const track = r.waypointTimes?.find(t => t.waypointUuid === wp.waypointUuid)
+                        return (
+                          <div key={wp.waypointUuid} className="flex justify-between items-center text-[10px]">
+                            <span className="text-slate-500 flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${track ? 'bg-green-500' : 'bg-slate-300'}`} />
+                              {wp.name || `WP ${wp.order}`}
+                            </span>
+                            <span className={`font-mono ${track ? 'text-slate-700 font-bold' : 'text-slate-300'}`}>
+                              {track ? formatTime(track.timeFromStart) : '--:--:--'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -164,11 +215,21 @@ export default function LiveRace() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'map' | 'board'>('map')
   const [teamFilter, setTeamFilter] = useState<'general' | 'team'>('general')
+  const [selectedUserPath, setSelectedUserPath] = useState<string | null>(null)
+  const [userPathData, setUserPathData] = useState<[number, number][]>([])
+  const [notifications, setNotifications] = useState<{ id: string, message: string, type: string }[]>([])
   const rankTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const posTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Load trail details
   useEffect(() => {
+    if (!id || !selectedUserPath) {
+      setUserPathData([])
+      return
+    }
+    racesApi.routeHistory(id, selectedUserPath).then(r => {
+      setUserPathData(r.data.map((p: any) => [p.lat, p.lon]))
+    })
+  }, [id, selectedUserPath])
     if (!id) return
     trailsApi.details(id).then((r) => setTrail(r.data)).finally(() => setLoading(false))
   }, [id])
@@ -226,10 +287,30 @@ export default function LiveRace() {
       })
     }
     const onRank = (r: RankingEntry[]) => setRankings(r)
+    const onEvent = (e: { type: string, userName: string }) => {
+      const id = Math.random().toString(36).slice(2)
+      const message = e.type === 'sos'
+        ? `🚨 EMERGENCIA: ${e.userName} ha activado el S.O.S!`
+        : e.type === 'completed'
+        ? `🏆 ${e.userName} ha finalizado la carrera!`
+        : `🛑 ${e.userName} ha abandonado.`
+
+      setNotifications(prev => [...prev, { id, message, type: e.type }])
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== id))
+      }, 5000)
+    }
+
     onPositionUpdate(onPos)
     onRaceUpdate(onRank)
+    onRaceEvent(onEvent)
     joinRace(id, token)
-    return () => { offPositionUpdate(onPos); offRaceUpdate(onRank); leaveRace(id) }
+    return () => {
+      offPositionUpdate(onPos);
+      offRaceUpdate(onRank);
+      offRaceEvent(onEvent);
+      leaveRace(id)
+    }
   }, [id, token])
 
   const onlineCount = useMemo(() => Array.from(positions.values()).filter((p) => p.isOnline).length, [positions])
@@ -252,7 +333,22 @@ export default function LiveRace() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div className="flex flex-col h-[calc(100vh-56px)] relative">
+      {/* Real-time Notifications */}
+      <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
+        {notifications.map(n => (
+          <div
+            key={n.id}
+            className={`px-4 py-3 rounded-lg shadow-xl text-white font-bold text-sm animate-bounce-in pointer-events-auto ${
+              n.type === 'sos' ? 'bg-red-500 border-2 border-white animate-pulse' :
+              n.type === 'completed' ? 'bg-blue-600' : 'bg-red-600'
+            }`}
+          >
+            {n.message}
+          </div>
+        ))}
+      </div>
+
       {/* Header bar */}
       <div className="flex-shrink-0 bg-white border-b border-slate-100 px-4 sm:px-6 py-3">
         <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
@@ -341,20 +437,39 @@ export default function LiveRace() {
                 color="#f59e0b" fillOpacity={0.06} weight={1} dashArray="4" />
             ))}
 
-            {Array.from(positions.values()).map((pos) => (
-              <Marker key={pos.userUuid} position={[pos.lat, pos.lon]} icon={runnerIcon(pos.userName.split(' ')[0], pos.isOnline)}>
-                <Popup>
-                  <div className="text-sm">
-                    <p className="font-bold">{pos.userName}</p>
-                    <p className="text-slate-500">{pos.teamName}</p>
-                    <p className={`text-xs mt-1 font-semibold ${pos.isOnline ? 'text-green-600' : 'text-amber-600'}`}>
-                      {pos.isOnline ? '● GPS en vivo' : '◎ Último waypoint'}
-                    </p>
-                    <p className="text-slate-400 text-xs">Actualizado hace {timeAgo(pos.timestamp)}</p>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+            {userPathData.length > 1 && (
+              <Polyline positions={userPathData} color="#2563eb" weight={3} dashArray="5, 8" opacity={0.6} />
+            )}
+
+            {Array.from(positions.values()).map((pos) => {
+              const runnerRank = rankings.find(r => r.userUuid === pos.userUuid)
+              const status = runnerRank?.sos ? 'sos' : runnerRank?.isCompleted ? 'completed' : runnerRank?.isAbandoned ? 'abandoned' : undefined
+
+              return (
+                <Marker
+                  key={pos.userUuid}
+                  position={[pos.lat, pos.lon]}
+                  icon={runnerIcon(pos.userName.split(' ')[0], pos.isOnline, status as any, pos.activityType as any)}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <p className="font-bold">{pos.userName}</p>
+                      <p className="text-slate-500">{pos.teamName}</p>
+                      <p className={`text-xs mt-1 font-semibold ${
+                        status === 'completed' ? 'text-blue-600' :
+                        status === 'abandoned' ? 'text-red-600' :
+                        pos.isOnline ? 'text-green-600' : 'text-amber-600'
+                      }`}>
+                        {status === 'completed' ? '🏆 Carrera finalizada' :
+                         status === 'abandoned' ? '🛑 Abandonó la carrera' :
+                         pos.isOnline ? '● GPS en vivo' : '◎ Último waypoint'}
+                      </p>
+                      <p className="text-slate-400 text-xs">Actualizado hace {timeAgo(pos.timestamp)}</p>
+                    </div>
+                  </Popup>
+                </Marker>
+              )
+            })}
           </MapContainer>
         </div>
 
@@ -370,6 +485,7 @@ export default function LiveRace() {
             teamFilter={teamFilter}
             onTeamFilterChange={setTeamFilter}
             userTeamUuid={user?.uuid_team}
+            waypoints={trail?.waypoints || []}
           />
         </div>
       </div>

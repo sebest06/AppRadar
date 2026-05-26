@@ -62,7 +62,7 @@ class WearTrackingService : Service() {
             userUuid = intent?.getStringExtra(EXTRA_USER_UUID) ?: ""
             sessionUuid = intent?.getStringExtra(EXTRA_SESSION_UUID) ?: ""
             WearTrackingService.startTimeMillis = intent?.getLongExtra(EXTRA_START_TIME, System.currentTimeMillis()) ?: System.currentTimeMillis()
-            activeTrailUuid = trailUuid
+            WearTrackingService.activeTrailUuid = trailUuid
         }
 
         createNotificationChannel()
@@ -167,13 +167,13 @@ class WearTrackingService : Service() {
         const val EXTRA_START_TIME = "startTime"
 
         var isServiceRunning = false
-            private set
+            internal set
 
         var activeTrailUuid: String? = null
-            private set
+            internal set
 
         var startTimeMillis: Long = 0L
-            private set
+            internal set
 
         private const val CHANNEL_ID = "WearTrackingChannel"
         private const val RANKING_CHANNEL_ID = "WearRankingChannel"

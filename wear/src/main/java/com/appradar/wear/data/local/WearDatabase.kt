@@ -9,7 +9,7 @@ import com.appradar.wear.data.local.entity.WearWaypointEntity
 
 @Database(
     entities = [WearTrailEntity::class, WearWaypointEntity::class, WearTrackEntity::class, WearRaceRunEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class WearDatabase : RoomDatabase() {

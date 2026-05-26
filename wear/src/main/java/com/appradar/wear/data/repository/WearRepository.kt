@@ -27,6 +27,9 @@ class WearRepository @Inject constructor(
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WearWaypointEntity>> =
         wearDao.getWaypointsForTrail(trailUuid)
 
+    fun getTracksForRun(runUuid: String): Flow<List<WearTrackEntity>> =
+        wearDao.getTracksForRun(runUuid)
+
     suspend fun login(user: String, passw: String): Boolean {
         return try {
             val response = apiService.login(mapOf("user" to user, "passw" to passw))
@@ -83,7 +86,7 @@ class WearRepository @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val sessionUuid = response.body()!!.sessionUuid
                     if (sessionUuid != null) {
-                        wearDao.insertRaceRun(run.copy(sessionUuid = sessionUuid))
+                        wearDao.markRaceRunAsSynced(run.runUuid, sessionUuid)
                     }
                 }
             }
@@ -99,6 +102,14 @@ class WearRepository @Inject constructor(
                 }
             }
         } catch (_: Exception) {}
+    }
+
+    suspend fun hasUnsyncedData(): Boolean {
+        return try {
+            wearDao.getUnsyncedRaceRuns().isNotEmpty() || wearDao.getUnsyncedTracks().isNotEmpty()
+        } catch (_: Exception) {
+            false
+        }
     }
 
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.wear.data.remote.WearRankingEntry> {

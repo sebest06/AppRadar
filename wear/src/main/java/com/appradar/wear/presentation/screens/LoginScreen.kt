@@ -1,9 +1,14 @@
 package com.appradar.wear.presentation.screens
 
+import android.content.Intent
+import android.view.inputmethod.EditorInfo
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,14 +35,14 @@ fun LoginScreen(
     val listState = rememberScalingLazyListState()
 
     LaunchedEffect(savedApiUrl) {
-        apiUrl = savedApiUrl
+        if (apiUrl.isEmpty()) apiUrl = savedApiUrl
     }
 
     LaunchedEffect(loginSuccess) {
         if (loginSuccess == true) {
             onLoginSuccess()
         } else if (loginSuccess == false) {
-            errorMessage = "Error"
+            errorMessage = "Error de login"
             viewModel.resetLoginStatus()
         }
     }
@@ -48,29 +53,27 @@ fun LoginScreen(
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp, start = 8.dp, end = 8.dp),
+            contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp, start = 8.dp, end = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item {
                 Text(
-                    text = "Login",
+                    text = "AppRadar Login",
                     style = MaterialTheme.typography.title3,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
 
             item {
-                CompactChip(
-                    onClick = { /* Podrías abrir un diálogo para editar la URL */ },
-                    label = { Text(apiUrl, maxLines = 1) },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth()
+                TextInputField(
+                    value = apiUrl,
+                    onValueChange = { apiUrl = it },
+                    label = "URL Servidor",
+                    placeholder = "http://..."
                 )
             }
 
             item {
-                // En Wear OS los TextField no son estándar, se suele usar chips que abren el teclado
-                // Simplificamos con campos básicos para el ejemplo
                 TextInputField(
                     value = username,
                     onValueChange = { username = it },
@@ -82,7 +85,7 @@ fun LoginScreen(
                 TextInputField(
                     value = password,
                     onValueChange = { password = it },
-                    label = "Password",
+                    label = "Contraseña",
                     isPassword = true
                 )
             }
@@ -92,7 +95,8 @@ fun LoginScreen(
                     Text(
                         text = errorMessage!!,
                         color = MaterialTheme.colors.error,
-                        style = MaterialTheme.typography.caption2
+                        style = MaterialTheme.typography.caption2,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -102,16 +106,27 @@ fun LoginScreen(
                     onClick = {
                         if (username.isNotBlank() && password.isNotBlank()) {
                             viewModel.login(apiUrl, username, password)
+                        } else {
+                            errorMessage = "Campos vacíos"
                         }
                     },
-                    modifier = Modifier.size(ButtonDefaults.DefaultButtonSize)
+                    modifier = Modifier.padding(top = 8.dp)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else {
-                        Text("OK")
+                        Text("ENTRAR")
                     }
                 }
+            }
+            
+            item {
+                Text(
+                    text = "También puedes sincronizar desde el teléfono",
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp, start = 12.dp, end = 12.dp)
+                )
             }
         }
     }
@@ -122,16 +137,49 @@ fun TextInputField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    placeholder: String = "Toca para escribir",
     isPassword: Boolean = false
 ) {
-    // Implementación simplificada para Wear OS
-    // Normalmente aquí usarías RemoteInput o un diálogo
+    // Launcher para abrir el diálogo de entrada de texto del sistema Wear OS
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val data = result.data ?: return@rememberLauncherForActivityResult
+            val results = androidx.core.app.RemoteInput.getResultsFromIntent(data)
+            results?.getCharSequence("extra_text")?.let {
+                onValueChange(it.toString())
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(label, style = MaterialTheme.typography.caption2, modifier = Modifier.padding(start = 8.dp))
-        // Simulamos el input con un chip por ahora (en Wear OS real usarías un diálogo de texto)
+        Text(
+            text = label, 
+            style = MaterialTheme.typography.caption2, 
+            modifier = Modifier.padding(start = 8.dp),
+            color = MaterialTheme.colors.secondary
+        )
         Chip(
-            onClick = { /* Abrir diálogo de entrada de texto */ },
-            label = { Text(if (isPassword && value.isNotEmpty()) "********" else value.ifEmpty { "Toca para escribir" }) },
+            onClick = {
+                // Intent estándar de Wear OS para pedir texto
+                val remoteInput = androidx.core.app.RemoteInput.Builder("extra_text")
+                    .setLabel(label)
+                    .build()
+                
+                val remoteIntent = Intent("com.google.android.wearable.action.REMOTE_INPUT")
+                remoteIntent.putExtra("androidx.core.app.RemoteInput.extra_inputs", arrayOf(remoteInput))
+                
+                try {
+                    launcher.launch(remoteIntent)
+                } catch (_: Exception) {}
+            },
+            label = { 
+                Text(
+                    text = if (isPassword && value.isNotEmpty()) "********" else value.ifEmpty { placeholder },
+                    maxLines = 1
+                ) 
+            },
             colors = ChipDefaults.secondaryChipColors(),
             modifier = Modifier.fillMaxWidth()
         )

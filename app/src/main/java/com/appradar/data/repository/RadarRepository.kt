@@ -77,7 +77,7 @@ class RadarRepository @Inject constructor(
     }
 
     suspend fun uploadUnsyncedData() {
-        // 1. Sincronizar Carreras (Runs) que no tienen sessionUuid
+        // 1. Sincronizar Carreras (Runs) que no tienen sessionUuid o han cambiado
         try {
             val unsyncedRuns = radarDao.getUnsyncedRaceRuns()
             unsyncedRuns.forEach { run ->
@@ -85,7 +85,7 @@ class RadarRepository @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val sessionUuid = response.body()!!.sessionUuid
                     if (sessionUuid != null) {
-                        radarDao.insertRaceRun(run.copy(sessionUuid = sessionUuid))
+                        radarDao.markRaceRunAsSynced(run.runUuid, sessionUuid)
                     }
                 }
             }
@@ -115,11 +115,13 @@ class RadarRepository @Inject constructor(
 
     suspend fun uploadGpsPosition(trailUuid: String, lat: Double, lon: Double, accuracy: Float) {
         try {
+            val userIcon = userPreferences.userIconName.firstOrNull() ?: "runner"
             apiService.uploadGpsPosition(mapOf(
                 "trailUuid" to trailUuid,
                 "lat" to lat,
                 "lon" to lon,
                 "accuracy" to accuracy,
+                "activityType" to userIcon,
                 "timestamp" to System.currentTimeMillis()
             ))
         } catch (_: Exception) {}

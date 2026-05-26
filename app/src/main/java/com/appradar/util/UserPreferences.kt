@@ -65,6 +65,10 @@ class UserPreferences(private val context: Context) {
         }
     }
 
+    val userIconName: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[USER_ICON_KEY] ?: "runner"
+    }
+
     val activeTrailUuid: Flow<String?> = context.dataStore.data.map { it[ACTIVE_TRAIL_UUID_KEY] }
     val activeRunUuid: Flow<String?> = context.dataStore.data.map { it[ACTIVE_RUN_UUID_KEY] }
     val activeStartTime: Flow<Long> = context.dataStore.data.map { it[ACTIVE_START_TIME_KEY] ?: 0L }

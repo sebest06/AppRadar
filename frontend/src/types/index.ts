@@ -44,6 +44,14 @@ export interface RankingEntry {
   totalTime: number
   isCompleted: boolean
   isAbandoned: boolean
+  sos?: boolean
+  activityType?: 'runner' | 'bike' | 'car'
+  waypointTimes?: {
+    waypointUuid: string
+    timestamp: number
+    timeFromStart: number
+  }[]
+  nextWaypoint?: string
 }
 
 export interface LivePosition {
@@ -55,6 +63,8 @@ export interface LivePosition {
   timestamp: number
   accuracy?: number
   isOnline: boolean
+  sos?: boolean
+  activityType?: 'runner' | 'bike' | 'car'
 }
 
 export interface RaceSession {

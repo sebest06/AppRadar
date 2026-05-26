@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -39,8 +40,11 @@ fun ActiveRaceScreen(
     val waypoints by viewModel.waypoints.collectAsState()
     val isRaceStarted by viewModel.isRaceStarted.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
+    val isCompleted by viewModel.isCompleted.collectAsState()
+    val isAbandoned by viewModel.isAbandoned.collectAsState()
     val nextDistance by viewModel.nextWaypointDistance.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
+    val tracks by viewModel.tracks.collectAsState()
     val error by viewModel.error.collectAsState()
 
     LaunchedEffect(trailUuid) { viewModel.loadTrail(trailUuid) }
@@ -112,25 +116,81 @@ fun ActiveRaceScreen(
                 }
             }
 
+            // Waypoints y tiempos
+            if (waypoints.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Waypoints",
+                        style = MaterialTheme.typography.caption1,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                }
+                
+                items(waypoints.size) { index ->
+                    val wp = waypoints[index]
+                    val track = tracks.find { it.waypointUuid == wp.waypointUuid }
+                    val isReached = track != null
+                    
+                    Chip(
+                        onClick = { },
+                        label = {
+                            Text(
+                                text = wp.name.ifEmpty { "WP ${index + 1}" },
+                                overflow = TextOverflow.Ellipsis,
+                                maxLines = 1
+                            )
+                        },
+                        secondaryLabel = {
+                            Text(
+                                text = if (isReached) formatTime(track!!.timeFromStart) else "--:--:--",
+                                color = if (isReached) Color(0xFF4CAF50) else MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                            )
+                        },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = false
+                    )
+                }
+            }
+
             if (!isRaceStarted) {
-                error?.let {
+                if (isCompleted || isAbandoned) {
                     item {
                         Text(
-                            text = it,
-                            style = MaterialTheme.typography.caption3,
-                            color = MaterialTheme.colors.error,
+                            text = if (isCompleted) "¡COMPLETADA!" else "ABANDONADA",
+                            style = MaterialTheme.typography.button,
+                            color = if (isCompleted) Color(0xFF4CAF50) else Color(0xFFB71C1C),
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 10.dp)
+                            modifier = Modifier.padding(top = 8.dp)
                         )
                     }
-                }
-                item {
-                    Button(
-// ...
-                        onClick = { viewModel.startRace() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("INICIAR")
+                    item {
+                        Button(
+                            onClick = { onNavigateBack() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("SALIR")
+                        }
+                    }
+                } else {
+                    error?.let {
+                        item {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.caption3,
+                                color = MaterialTheme.colors.error,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = { viewModel.startRace() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (elapsedTime > 0) "REANUDAR" else "INICIAR")
+                        }
                     }
                 }
             } else {

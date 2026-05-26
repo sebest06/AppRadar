@@ -31,6 +31,7 @@ class HomeViewModel @Inject constructor(
 
     init {
         refreshTrails()
+        syncPendingData()
     }
 
     fun refreshTrails() {
@@ -38,6 +39,12 @@ class HomeViewModel @Inject constructor(
             _isRefreshing.value = true
             repository.syncTrailsFromApi()
             _isRefreshing.value = false
+        }
+    }
+
+    private fun syncPendingData() {
+        viewModelScope.launch {
+            repository.uploadUnsyncedData()
         }
     }
 }
