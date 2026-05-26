@@ -81,8 +81,11 @@ interface RadarDao {
     @Query("SELECT * FROM tracks WHERE isSynced = 0")
     suspend fun getUnsyncedTracks(): List<TrackEntity>
 
-    @Query("SELECT * FROM race_runs WHERE sessionUuid IS NULL")
+    @Query("SELECT * FROM race_runs WHERE isSynced = 0")
     suspend fun getUnsyncedRaceRuns(): List<RaceRunEntity>
+
+    @Query("UPDATE race_runs SET isSynced = 1, sessionUuid = :sessionUuid WHERE runUuid = :runUuid")
+    suspend fun markRaceRunAsSynced(runUuid: String, sessionUuid: String)
 
     @Query("UPDATE tracks SET isSynced = 1 WHERE trackUuid IN (:trackUuids)")
     suspend fun markTracksAsSynced(trackUuids: List<String>)

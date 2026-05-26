@@ -1,0 +1,18 @@
+appId: com.appradar
+---
+- launchApp
+- assertVisible: "AppRadar Trail"
+- tapOn: "Usuario"
+- inputText: "admin"
+- tapOn: "Contraseña"
+- inputText: "1234"
+- tapOn: "Iniciar Sesión"
+- assertVisible: "Hola, Admin"
+- assertVisible: "En vivo ahora"
+- tapOn: "Ver en vivo"
+- assertVisible: "Mapa"
+- assertVisible: "Clasificación"
+- back
+- tapOn: "Configuración" # Asumiendo que hay un ícono o texto de settings
+- tapOn: "Cerrar sesión"
+- assertVisible: "AppRadar Trail"

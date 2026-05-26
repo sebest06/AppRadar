@@ -45,3 +45,11 @@ export function onRaceUpdate(cb: (rankings: import('../types').RankingEntry[]) =
 export function offRaceUpdate(cb: (rankings: import('../types').RankingEntry[]) => void) {
   getSocket().off('race_update', cb)
 }
+
+export function onRaceEvent(cb: (event: { type: string, userName: string, trailUuid: string }) => void) {
+  getSocket().on('race_event', cb)
+}
+
+export function offRaceEvent(cb: (event: { type: string, userName: string, trailUuid: string }) => void) {
+  getSocket().off('race_event', cb)
+}

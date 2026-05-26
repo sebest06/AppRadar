@@ -1,12 +1,36 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { rankingsApi, trailsApi } from '../services/api'
-import type { RankingEntry, Trail } from '../types'
+import type { RankingEntry, TrailWithWaypoints, Waypoint } from '../types'
 
 function formatTime(ms: number) {
   if (!ms) return '--:--:--'
   const s = Math.floor(ms / 1000)
   return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
+function exportToCSV(trail: any, data: RankingEntry[]) {
+  if (!data.length) return
+  const rows = data.map((r, i) => ({
+    "Posición": i + 1,
+    "Corredor": r.userName,
+    "Equipo": r.teamName,
+    "Waypoints": `${r.waypointsReached}/${r.totalWaypoints}`,
+    "Tiempo": formatTime(r.totalTime),
+    "Estado": r.isCompleted ? "Completó" : r.isAbandoned ? "Abandonó" : "En carrera"
+  }))
+
+  const csvContent = [
+    Object.keys(rows[0]).join(","),
+    ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(","))
+  ].join("\n")
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.setAttribute("href", url)
+  link.setAttribute("download", `resultados_${trail?.name || 'carrera'}.csv`)
+  link.click()
 }
 
 function Podium({ top3 }: { top3: RankingEntry[] }) {
@@ -45,62 +69,130 @@ function Podium({ top3 }: { top3: RankingEntry[] }) {
   )
 }
 
-function ResultRow({ r, pos }: { r: RankingEntry; pos: number }) {
+function ResultRow({ r, pos, waypoints }: { r: RankingEntry; pos: number; waypoints: Waypoint[] }) {
+  const [isExpanded, setIsExpanded] = useState(false)
   const medals = ['🥇', '🥈', '🥉']
   const pct = r.totalWaypoints > 0 ? (r.waypointsReached / r.totalWaypoints) * 100 : 0
+
+  const getStatusBadge = () => {
+    if (r.isCompleted) {
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ Completó</span>
+    }
+    if (r.isAbandoned) {
+      return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">✕ Abandonó</span>
+    }
+    return <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">En carrera</span>
+  }
+
+  const getMobileStatusBadge = () => {
+    if (r.isCompleted) {
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓</span>
+    }
+    if (r.isAbandoned) {
+      return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">✕</span>
+    }
+    return <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">En carrera</span>
+  }
 
   return (
     <>
       {/* Desktop row */}
-      <tr className="hidden sm:table-row hover:bg-slate-50 transition-colors">
+      <tr
+        className={`hidden sm:table-row transition-colors cursor-pointer border-l-4 ${
+          r.isCompleted ? 'bg-blue-50/30 hover:bg-blue-50 border-blue-500' :
+          r.isAbandoned ? 'bg-red-50/30 hover:bg-red-50 border-red-500 opacity-80' :
+          'hover:bg-slate-50 border-transparent'
+        }`}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <td className="px-4 py-3.5 text-center">
-          {pos < 3
+          {r.isCompleted ? '🏆' : r.isAbandoned ? '🛑' : (pos < 3
             ? <span className="text-lg">{medals[pos]}</span>
-            : <span className="text-sm font-bold text-slate-400">{pos + 1}</span>}
+            : <span className="text-sm font-bold text-slate-400">{pos + 1}</span>)}
         </td>
         <td className="px-4 py-3.5">
-          <p className="font-semibold text-slate-900 text-sm">{r.userName}</p>
+          <p className={`font-semibold text-sm ${r.isCompleted ? 'text-blue-900' : r.isAbandoned ? 'text-red-900' : 'text-slate-900'}`}>{r.userName}</p>
           <p className="text-xs text-slate-400">{r.teamName}</p>
         </td>
         <td className="px-4 py-3.5">
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-              <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+            <div className="flex-1 bg-slate-200/50 rounded-full h-1.5">
+              <div className={`h-1.5 rounded-full ${r.isAbandoned ? 'bg-red-400' : r.isCompleted ? 'bg-blue-500' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
             </div>
             <span className="text-xs font-medium text-slate-500 w-14 text-right">{r.waypointsReached}/{r.totalWaypoints}</span>
           </div>
         </td>
         <td className="px-4 py-3.5 text-right font-mono text-sm text-slate-700">{formatTime(r.totalTime)}</td>
         <td className="px-4 py-3.5 text-center">
-          {r.isCompleted
-            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ Completó</span>
-            : <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">En carrera</span>}
+          {getStatusBadge()}
         </td>
       </tr>
+
+      {/* Expanded row (Desktop) */}
+      {isExpanded && (
+        <tr className={`hidden sm:table-row ${r.isCompleted ? 'bg-blue-50/50' : r.isAbandoned ? 'bg-red-50/50' : 'bg-slate-50/50'}`}>
+          <td colSpan={5} className="px-8 py-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {waypoints.map((wp) => {
+                const track = r.waypointTimes?.find(t => t.waypointUuid === wp.waypointUuid)
+                return (
+                  <div key={wp.waypointUuid} className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold truncate mb-1">{wp.name || `WP ${wp.order}`}</p>
+                    <p className={`font-mono text-xs ${track ? 'text-green-600 font-bold' : 'text-slate-300'}`}>
+                      {track ? formatTime(track.timeFromStart) : '--:--:--'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </td>
+        </tr>
+      )}
 
       {/* Mobile card */}
       <tr className="sm:hidden">
         <td colSpan={5} className="px-4 py-2">
-          <div className="card p-4">
+          <div
+            className={`card p-4 transition-all border-l-4 ${
+              r.isCompleted ? 'border-blue-500 bg-blue-50/30' :
+              r.isAbandoned ? 'border-red-500 bg-red-50/30' :
+              'border-transparent'
+            } ${isExpanded ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`}
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
             <div className="flex items-center gap-3 mb-3">
               <span className="text-xl flex-shrink-0">
-                {pos < 3 ? medals[pos] : <span className="text-sm font-bold text-slate-400 w-6 text-center inline-block">{pos + 1}</span>}
+                {r.isCompleted ? '🏆' : r.isAbandoned ? '🛑' : (pos < 3 ? medals[pos] : <span className="text-sm font-bold text-slate-400 w-6 text-center inline-block">{pos + 1}</span>)}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-900 truncate">{r.userName}</p>
+                <p className={`font-bold truncate ${r.isCompleted ? 'text-blue-900' : r.isAbandoned ? 'text-red-900' : 'text-slate-900'}`}>{r.userName}</p>
                 <p className="text-xs text-slate-400">{r.teamName}</p>
               </div>
-              {r.isCompleted
-                ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓</span>
-                : <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">En carrera</span>}
+              {getMobileStatusBadge()}
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+              <div className="flex-1 bg-slate-200/50 rounded-full h-1.5">
+                <div className={`h-1.5 rounded-full ${r.isAbandoned ? 'bg-red-400' : r.isCompleted ? 'bg-blue-500' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
               </div>
               <span className="text-xs text-slate-500">{r.waypointsReached}/{r.totalWaypoints} WP</span>
               <span className="text-xs font-mono font-semibold text-slate-700">{formatTime(r.totalTime)}</span>
             </div>
+
+            {isExpanded && (
+              <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
+                {waypoints.map((wp) => {
+                  const track = r.waypointTimes?.find(t => t.waypointUuid === wp.waypointUuid)
+                  return (
+                    <div key={wp.waypointUuid} className="flex flex-col">
+                      <span className="text-[10px] text-slate-400 truncate">{wp.name || `WP ${wp.order}`}</span>
+                      <span className={`font-mono text-xs ${track ? 'text-green-600 font-bold' : 'text-slate-300'}`}>
+                        {track ? formatTime(track.timeFromStart) : '--:--:--'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </td>
       </tr>
@@ -108,9 +200,34 @@ function ResultRow({ r, pos }: { r: RankingEntry; pos: number }) {
   )
 }
 
+  const rankings = rankings.map((r, i) => ({
+    "Posición": i + 1,
+    "Corredor": r.userName,
+    "Equipo": r.teamName,
+    "Waypoints": `${r.waypointsReached}/${r.totalWaypoints}`,
+    "Tiempo": formatTime(r.totalTime),
+    "Estado": r.isCompleted ? "Completó" : r.isAbandoned ? "Abandonó" : "En carrera"
+  }))
+
+  const csvContent = [
+    Object.keys(rankings[0]).join(","),
+    ...rankings.map(r => Object.values(r).join(","))
+  ].join("\n")
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.setAttribute("href", url)
+  link.setAttribute("download", `resultados_${trail?.name || 'carrera'}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 export default function Results() {
   const { id } = useParams<{ id: string }>()
-  const [trail, setTrail] = useState<Trail | null>(null)
+  const [trail, setTrail] = useState<TrailWithWaypoints | null>(null)
   const [rankings, setRankings] = useState<RankingEntry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -141,6 +258,12 @@ export default function Results() {
           <div className="flex flex-wrap gap-3 mt-1 text-sm text-slate-500">
             {trail?.distanceKm ? <span>📏 {trail.distanceKm} km</span> : null}
             {trail?.elevationM ? <span>⛰️ +{trail.elevationM} m</span> : null}
+            <button
+              onClick={() => exportToCSV(trail, rankings)}
+              className="text-green-600 hover:text-green-700 font-semibold flex items-center gap-1"
+            >
+              📥 Descargar CSV
+            </button>
           </div>
         </div>
         <Link
@@ -183,7 +306,7 @@ export default function Results() {
               </thead>
               <tbody className="divide-y divide-slate-50 sm:divide-slate-100">
                 {rankings.map((r, i) => (
-                  <ResultRow key={r.userUuid} r={r} pos={i} />
+                  <ResultRow key={r.userUuid} r={r} pos={i} waypoints={trail?.waypoints || []} />
                 ))}
               </tbody>
             </table>

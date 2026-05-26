@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-05-16T13:24:51.410595535Z">
+        <DropdownSelection timestamp="2026-05-24T23:18:18.398857472Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=RFAY9119GBH" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=/home/sebest/.android/avd/Medium_Phone.avd" />
             </handle>
           </Target>
         </DropdownSelection>
@@ -15,7 +15,7 @@
       </SelectionState>
       <SelectionState runConfigName="wear">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-05-16T14:01:58.015174156Z">
+        <DropdownSelection timestamp="2026-05-16T13:24:51.410595535Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="PhysicalDevice" identifier="serial=RFAY9119GBH" />

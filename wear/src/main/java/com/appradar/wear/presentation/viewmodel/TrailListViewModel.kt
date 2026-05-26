@@ -32,6 +32,7 @@ class TrailListViewModel @Inject constructor(
 
     init {
         syncFromApi()
+        syncPendingData()
     }
 
     fun syncFromApi() {
@@ -45,6 +46,12 @@ class TrailListViewModel @Inject constructor(
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    private fun syncPendingData() {
+        viewModelScope.launch {
+            repository.uploadUnsyncedData()
         }
     }
 }

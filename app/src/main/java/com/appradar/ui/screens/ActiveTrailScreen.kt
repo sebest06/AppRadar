@@ -20,6 +20,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.appradar.R
 import com.appradar.ui.viewmodel.ActiveTrailViewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.text.font.FontWeight
 import com.appradar.util.formatElapsedTime
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -46,6 +50,7 @@ fun ActiveTrailScreen(
     val isRaceStarted by viewModel.isRaceStarted.collectAsState()
     val isPaused by viewModel.isPaused.collectAsState()
     val elapsedTime by viewModel.elapsedTimeMillis.collectAsState()
+    val isSos by viewModel.isSos.collectAsState()
     val userIconResId by viewModel.userIconResId.collectAsState()
     val error by viewModel.error.collectAsState()
 
@@ -214,6 +219,18 @@ fun ActiveTrailScreen(
                                         Text(if (isPaused) "REANUDAR" else "PAUSAR")
                                     }
                                 }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { viewModel.toggleSos() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSos) ComposeColor(0xFFB71C1C) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (isSos) "SOS ACTIVADO - TOCAR PARA CANCELAR" else "PEDIR S.O.S (EMERGENCIA)", fontWeight = FontWeight.Bold)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(

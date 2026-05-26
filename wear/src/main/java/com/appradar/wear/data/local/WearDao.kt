@@ -40,9 +40,15 @@ interface WearDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRaceRun(run: WearRaceRunEntity)
 
-    @Query("SELECT * FROM wear_race_runs WHERE sessionUuid IS NULL")
+    @Query("SELECT * FROM wear_race_runs WHERE isSynced = 0")
     suspend fun getUnsyncedRaceRuns(): List<WearRaceRunEntity>
+
+    @Query("UPDATE wear_race_runs SET isSynced = 1, sessionUuid = :sessionUuid WHERE runUuid = :runUuid")
+    suspend fun markRaceRunAsSynced(runUuid: String, sessionUuid: String)
 
     @Query("UPDATE wear_tracks SET isSynced = 1 WHERE trackUuid IN (:trackUuids)")
     suspend fun markTracksAsSynced(trackUuids: List<String>)
+
+    @Query("SELECT * FROM wear_tracks WHERE runUuid = :runUuid ORDER BY timestamp ASC")
+    fun getTracksForRun(runUuid: String): Flow<List<WearTrackEntity>>
 }

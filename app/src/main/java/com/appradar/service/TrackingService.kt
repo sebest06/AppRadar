@@ -137,7 +137,9 @@ class TrackingService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastGpsUploadMs >= 15_000L) {
             lastGpsUploadMs = now
-            serviceScope.launch { repository.uploadGpsPosition(trailUuid, location.latitude, location.longitude, location.accuracy) }
+            serviceScope.launch { 
+                repository.uploadGpsPosition(trailUuid, location.latitude, location.longitude, location.accuracy) 
+            }
         }
 
         serviceScope.launch {

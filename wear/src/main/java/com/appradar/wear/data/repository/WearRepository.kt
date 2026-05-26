@@ -5,6 +5,7 @@ import com.appradar.wear.data.local.entity.WearTrackEntity
 import com.appradar.wear.data.local.entity.WearTrailEntity
 import com.appradar.wear.data.local.entity.WearWaypointEntity
 import com.appradar.wear.data.remote.WearApiService
+import com.appradar.wear.util.WearUserPreferences
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,7 +13,8 @@ import javax.inject.Singleton
 @Singleton
 class WearRepository @Inject constructor(
     private val wearDao: WearDao,
-    private val apiService: WearApiService
+    private val apiService: WearApiService,
+    private val userPreferences: WearUserPreferences
 ) {
     fun getAllTrails(): Flow<List<WearTrailEntity>> = wearDao.getAllTrails()
 
@@ -25,18 +27,38 @@ class WearRepository @Inject constructor(
     fun getWaypointsForTrail(trailUuid: String): Flow<List<WearWaypointEntity>> =
         wearDao.getWaypointsForTrail(trailUuid)
 
+    fun getTracksForRun(runUuid: String): Flow<List<WearTrackEntity>> =
+        wearDao.getTracksForRun(runUuid)
+
+    suspend fun login(user: String, passw: String): Boolean {
+        return try {
+            val response = apiService.login(mapOf("user" to user, "passw" to passw))
+            if (response.isSuccessful && response.body() != null) {
+                val loginResponse = response.body()!!
+                userPreferences.setAuthToken(loginResponse.token)
+                userPreferences.setUserUuid(loginResponse.user.uuid)
+                userPreferences.setUserName(loginResponse.user.nombre)
+                true
+            } else false
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun syncTrailsFromApi() {
-        val response = apiService.getTrails()
-        if (response.isSuccessful) {
-            val trails = response.body() ?: return
-            wearDao.insertTrails(trails)
-            trails.forEach { trail ->
-                val details = apiService.getTrailDetails(trail.trailUuid)
-                if (details.isSuccessful) {
-                    details.body()?.waypoints?.let { wearDao.insertWaypoints(it) }
+        try {
+            val response = apiService.getTrails()
+            if (response.isSuccessful) {
+                val trails = response.body() ?: return
+                wearDao.insertTrails(trails)
+                trails.forEach { trail ->
+                    val details = apiService.getTrailDetails(trail.trailUuid)
+                    if (details.isSuccessful) {
+                        details.body()?.waypoints?.let { wearDao.insertWaypoints(it) }
+                    }
                 }
             }
-        }
+        } catch (_: Exception) {}
     }
 
     suspend fun saveTrailsFromPhone(trails: List<WearTrailEntity>, waypoints: List<WearWaypointEntity>) {
@@ -64,7 +86,7 @@ class WearRepository @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val sessionUuid = response.body()!!.sessionUuid
                     if (sessionUuid != null) {
-                        wearDao.insertRaceRun(run.copy(sessionUuid = sessionUuid))
+                        wearDao.markRaceRunAsSynced(run.runUuid, sessionUuid)
                     }
                 }
             }
@@ -80,6 +102,14 @@ class WearRepository @Inject constructor(
                 }
             }
         } catch (_: Exception) {}
+    }
+
+    suspend fun hasUnsyncedData(): Boolean {
+        return try {
+            wearDao.getUnsyncedRaceRuns().isNotEmpty() || wearDao.getUnsyncedTracks().isNotEmpty()
+        } catch (_: Exception) {
+            false
+        }
     }
 
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.wear.data.remote.WearRankingEntry> {

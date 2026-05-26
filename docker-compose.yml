@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  dev-env:
+    build: .
+    image: appradar-dev
+    volumes:
+      - .:/app
+      # Protegemos los node_modules internos para que no los pisen los locales
+      - /app/backend/node_modules
+      - /app/frontend/node_modules
+    environment:
+      - API_URL=http://backend:3000
+    command: tail -f /dev/null
+
+  backend:
+    image: appradar-dev
+    ports:
+      - "3000:3000"
+    working_dir: /app/backend
+    command: npm start
+    volumes:
+      - .:/app
+      - /app/backend/node_modules
+    depends_on:
+      - dev-env
+
+  frontend:
+    image: appradar-dev
+    ports:
+      - "5173:5173"
+    working_dir: /app/frontend
+    command: npm run dev -- --host
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules
+    depends_on:
+      - backend
+
+networks:
+  default:
+    name: appradar-network

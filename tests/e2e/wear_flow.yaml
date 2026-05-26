@@ -1,0 +1,14 @@
+appId: com.appradar.wear
+---
+- launchApp
+- assertVisible: "Seleccionar Carrera"
+- tapOn: "Maratón de Prueba"
+- assertVisible: "INICIAR"
+- tapOn: "INICIAR"
+- assertVisible: "00:00:01"
+- swipe:
+    direction: RIGHT
+- tapOn: "DETENER"
+- assertVisible: "Abandonar?"
+- tapOn: "SÍ"
+- assertVisible: "Seleccionar Carrera"

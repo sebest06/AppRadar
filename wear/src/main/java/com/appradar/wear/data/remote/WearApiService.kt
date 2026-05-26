@@ -33,7 +33,12 @@ interface WearApiService {
 
 data class WearLoginResponse(
     val token: String,
-    val userUuid: String = ""
+    val user: WearUserDto
+)
+
+data class WearUserDto(
+    val uuid: String,
+    val nombre: String
 )
 
 data class WearTrailDetailsResponse(
@@ -59,5 +64,6 @@ data class WearRankingEntry(
     val totalWaypoints: Int,
     val lastWaypointTime: Long,
     val totalTime: Long,
-    val isCompleted: Boolean
+    val isCompleted: Boolean,
+    val isAbandoned: Boolean
 )
