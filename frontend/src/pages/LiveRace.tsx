@@ -230,6 +230,8 @@ export default function LiveRace() {
       setUserPathData(r.data.map((p: any) => [p.lat, p.lon]))
     })
   }, [id, selectedUserPath])
+
+  useEffect(() => {
     if (!id) return
     trailsApi.details(id).then((r) => setTrail(r.data)).finally(() => setLoading(false))
   }, [id])

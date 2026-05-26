@@ -200,31 +200,6 @@ function ResultRow({ r, pos, waypoints }: { r: RankingEntry; pos: number; waypoi
   )
 }
 
-  const rankings = rankings.map((r, i) => ({
-    "Posición": i + 1,
-    "Corredor": r.userName,
-    "Equipo": r.teamName,
-    "Waypoints": `${r.waypointsReached}/${r.totalWaypoints}`,
-    "Tiempo": formatTime(r.totalTime),
-    "Estado": r.isCompleted ? "Completó" : r.isAbandoned ? "Abandonó" : "En carrera"
-  }))
-
-  const csvContent = [
-    Object.keys(rankings[0]).join(","),
-    ...rankings.map(r => Object.values(r).join(","))
-  ].join("\n")
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.setAttribute("href", url)
-  link.setAttribute("download", `resultados_${trail?.name || 'carrera'}.csv`)
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
-
 export default function Results() {
   const { id } = useParams<{ id: string }>()
   const [trail, setTrail] = useState<TrailWithWaypoints | null>(null)
