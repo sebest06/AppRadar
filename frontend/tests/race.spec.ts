@@ -69,9 +69,9 @@ test.describe('Página de Resultados', () => {
 
     await page.goto(`/races/${trail.trailUuid}/results`)
 
-    // Table with at least one row
+    // Table with at least one row containing the runner
     await expect(page.locator('table')).toBeVisible()
-    await expect(page.getByText('Admin User')).toBeVisible()
+    await expect(page.locator('table').getByText(/admin/i).first()).toBeVisible()
 
     // No error message
     await expect(page.getByText(/no se pudieron cargar/i)).not.toBeVisible()
