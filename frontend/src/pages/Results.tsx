@@ -77,33 +77,60 @@ function buildSpeedSegments(runner: RankingEntry, waypoints: Waypoint[]): SpeedS
   return segments
 }
 
-function SpeedBarChart({ segments }: { segments: SpeedSegment[] }) {
-  const [hovered, setHovered] = useState<number | null>(null)
+// Build all possible segments using all waypoints (not just those the runner reached)
+// Returns speed for each segment, or null if data is missing
+function buildAllSegments(runner: RankingEntry | null, waypoints: Waypoint[]): (SpeedSegment | null)[] {
+  if (!runner) return waypoints.slice(0, -1).map(() => null)
+  const sorted = [...waypoints].sort((a, b) => a.order - b.order)
+  return sorted.slice(0, -1).map((wpA, i) => {
+    const wpB = sorted[i + 1]
+    const timeA = runner.waypointTimes?.find(t => t.waypointUuid === wpA.waypointUuid)
+    const timeB = runner.waypointTimes?.find(t => t.waypointUuid === wpB.waypointUuid)
+    if (!timeA || !timeB) return null
+    const distKm = haversineKm(wpA.lat, wpA.lon, wpB.lat, wpB.lon)
+    const timeHours = (timeB.timestamp - timeA.timestamp) / 3_600_000
+    if (timeHours <= 0) return null
+    const nameA = wpA.name || `WP${wpA.order + 1}`
+    const nameB = wpB.name || `WP${wpB.order + 1}`
+    return {
+      label: nameB,
+      fullLabel: `${nameA} → ${nameB}`,
+      speed: Math.round((distKm / timeHours) * 10) / 10,
+      distanceKm: Math.round(distKm * 100) / 100,
+      timeMin: Math.round((timeB.timestamp - timeA.timestamp) / 6000) / 10,
+    }
+  })
+}
 
-  const W = 600
-  const H = 200
-  const padL = 44
-  const padR = 12
-  const padT = 12
-  const padB = 72
+function SpeedCompareChart({ segA, segB, nameA, nameB, waypoints }: {
+  segA: (SpeedSegment | null)[]
+  segB: (SpeedSegment | null)[]
+  nameA: string
+  nameB?: string
+  waypoints: Waypoint[]
+}) {
+  const [hovered, setHovered] = useState<number | null>(null)
+  const comparing = !!nameB
+  const sorted = [...waypoints].sort((a, b) => a.order - b.order)
+
+  const W = 600, H = 200, padL = 44, padR = 12, padT = 12, padB = 72
   const chartW = W - padL - padR
   const chartH = H - padT - padB
-
-  const maxSpeed = Math.max(...segments.map(s => s.speed), 1)
-  const avg = segments.reduce((s, x) => s + x.speed, 0) / segments.length
-  const barW = Math.min(chartW / segments.length - 4, 48)
+  const n = sorted.length - 1
+  const slotW = chartW / Math.max(n, 1)
+  const barW = Math.min(comparing ? slotW / 2 - 3 : slotW - 6, comparing ? 22 : 48)
   const yTicks = 4
 
-  function barColor(s: SpeedSegment) {
-    if (s.speed === maxSpeed) return '#16a34a'
-    if (s.speed >= avg) return '#4ade80'
-    return '#86efac'
-  }
+  const allSpeeds = [...segA, ...segB].filter(Boolean).map(s => s!.speed)
+  const maxSpeed = Math.max(...allSpeeds, 1)
+  const avgA = segA.filter(Boolean).reduce((s, x) => s + x!.speed, 0) / (segA.filter(Boolean).length || 1)
+
+  const colA = (speed: number) => speed >= avgA ? '#16a34a' : '#4ade80'
+  const colB = '#3b82f6'
 
   return (
     <div className="relative w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: Math.max(segments.length * 40 + padL + padR, 300) }}>
-        {/* grid + y-axis */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: Math.max(n * (comparing ? 52 : 40) + padL + padR, 300) }}>
         {Array.from({ length: yTicks + 1 }, (_, i) => {
           const val = Math.round((maxSpeed / yTicks) * i * 10) / 10
           const y = padT + chartH - (val / maxSpeed) * chartH
@@ -114,85 +141,123 @@ function SpeedBarChart({ segments }: { segments: SpeedSegment[] }) {
             </g>
           )
         })}
+        {/* avg A line */}
+        <line x1={padL} x2={W - padR} y1={padT + chartH - (avgA / maxSpeed) * chartH}
+          y2={padT + chartH - (avgA / maxSpeed) * chartH} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 3" />
 
-        {/* avg line */}
-        {(() => {
-          const y = padT + chartH - (avg / maxSpeed) * chartH
-          return <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 3" />
-        })()}
-
-        {/* bars */}
-        {segments.map((seg, i) => {
-          const x = padL + (chartW / segments.length) * i + (chartW / segments.length - barW) / 2
-          const bh = Math.max((seg.speed / maxSpeed) * chartH, 2)
-          const y = padT + chartH - bh
+        {Array.from({ length: n }, (_, i) => {
+          const sA = segA[i]
+          const sB = segB[i]
+          const slotX = padL + slotW * i
+          const xA = comparing ? slotX + slotW / 2 - barW - 1 : slotX + (slotW - barW) / 2
+          const xB = slotX + slotW / 2 + 1
           const isHov = hovered === i
+          const labelX = slotX + slotW / 2
+          const labelY = padT + chartH + 10
+
+          const wpB_name = sorted[i + 1]
+          const segLabel = wpB_name ? (wpB_name.name || `WP${wpB_name.order + 1}`) : ''
+
           return (
-            <g key={i}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ cursor: 'default' }}
-            >
-              <rect
-                x={x} y={y} width={barW} height={bh}
-                fill={barColor(seg)}
-                opacity={isHov ? 1 : 0.85}
-                rx="3" ry="3"
-              />
-              {isHov && (
-                <rect x={x - 2} y={y - 2} width={barW + 4} height={bh + 2} fill="none"
-                  stroke={barColor(seg)} strokeWidth="1.5" rx="4" ry="4" />
-              )}
-              {/* speed label on top */}
-              <text x={x + barW / 2} y={y - 4} textAnchor="middle" fontSize="10" fill="#475569" fontWeight="600">
-                {seg.speed}
-              </text>
-              {/* x label rotated */}
-              <text
-                x={x + barW / 2} y={padT + chartH + 10}
-                textAnchor="end"
-                fontSize="10" fill="#64748b"
-                transform={`rotate(-38, ${x + barW / 2}, ${padT + chartH + 10})`}
-              >
-                {seg.label}
-              </text>
+            <g key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)} style={{ cursor: 'default' }}>
+              {/* bar A */}
+              {sA && (() => {
+                const bh = Math.max((sA.speed / maxSpeed) * chartH, 2)
+                const y = padT + chartH - bh
+                return (
+                  <rect x={xA} y={y} width={barW} height={bh}
+                    fill={colA(sA.speed)} opacity={isHov ? 1 : 0.85} rx="2" ry="2" />
+                )
+              })()}
+              {/* bar B */}
+              {comparing && sB && (() => {
+                const bh = Math.max((sB.speed / maxSpeed) * chartH, 2)
+                const y = padT + chartH - bh
+                return (
+                  <rect x={xB} y={y} width={barW} height={bh}
+                    fill={colB} opacity={isHov ? 1 : 0.75} rx="2" ry="2" />
+                )
+              })()}
+              {/* hover outline */}
+              {isHov && <rect x={slotX + 1} y={padT} width={slotW - 2} height={chartH} fill="#f8fafc" opacity="0.5" rx="3" />}
+              <text x={labelX} y={labelY} textAnchor="end" fontSize="10" fill="#64748b"
+                transform={`rotate(-38, ${labelX}, ${labelY})`}>{segLabel}</text>
             </g>
           )
         })}
-
-        {/* y-axis label */}
         <text x={10} y={padT + chartH / 2} textAnchor="middle" fontSize="10" fill="#94a3b8"
           transform={`rotate(-90, 10, ${padT + chartH / 2})`}>km/h</text>
       </svg>
 
-      {/* hover tooltip */}
-      {hovered !== null && (
-        <div className="absolute top-2 right-2 bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2 text-xs pointer-events-none">
-          <p className="font-semibold text-slate-700 mb-0.5">{segments[hovered].fullLabel}</p>
-          <p className="text-green-700 font-bold text-sm">{segments[hovered].speed} km/h</p>
-          <p className="text-slate-400 mt-0.5">{segments[hovered].distanceKm} km · {segments[hovered].timeMin} min</p>
+      {hovered !== null && (segA[hovered] || segB[hovered]) && (
+        <div className="absolute top-2 right-2 bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2 text-xs pointer-events-none min-w-[140px]">
+          {segA[hovered] && (
+            <div className="mb-1">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500 mr-1.5 align-middle" />
+              <span className="font-semibold text-slate-700">{nameA}: </span>
+              <span className="text-green-700 font-bold">{segA[hovered]!.speed} km/h</span>
+              <span className="text-slate-400 ml-1">{segA[hovered]!.timeMin} min</span>
+            </div>
+          )}
+          {comparing && segB[hovered] && (
+            <div>
+              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500 mr-1.5 align-middle" />
+              <span className="font-semibold text-slate-700">{nameB}: </span>
+              <span className="text-blue-600 font-bold">{segB[hovered]!.speed} km/h</span>
+              <span className="text-slate-400 ml-1">{segB[hovered]!.timeMin} min</span>
+            </div>
+          )}
+          {comparing && segA[hovered] && segB[hovered] && (
+            <div className="mt-1 pt-1 border-t border-slate-100 text-slate-500">
+              Δ {Math.abs(Math.round((segA[hovered]!.speed - segB[hovered]!.speed) * 10) / 10)} km/h
+              {segA[hovered]!.speed > segB[hovered]!.speed ? ` (${nameA.split(' ')[0]} más rápido)` : ` (${nameB!.split(' ')[0]} más rápido)`}
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function SpeedChartModal({ runner, waypoints, onClose }: { runner: RankingEntry; waypoints: Waypoint[]; onClose: () => void }) {
-  const segments = buildSpeedSegments(runner, waypoints)
-  const avg = segments.length ? Math.round((segments.reduce((s, x) => s + x.speed, 0) / segments.length) * 10) / 10 : 0
-  const max = segments.length ? Math.max(...segments.map(s => s.speed)) : 0
+function SpeedChartModal({ runner, waypoints, allRunners, onClose }: {
+  runner: RankingEntry
+  waypoints: Waypoint[]
+  allRunners: RankingEntry[]
+  onClose: () => void
+}) {
+  const [compareUuid, setCompareUuid] = useState('')
+  const compareRunner = allRunners.find(r => r.userUuid === compareUuid) ?? null
+
+  const segA = buildAllSegments(runner, waypoints)
+  const segB = buildAllSegments(compareRunner, waypoints)
+
+  const validA = segA.filter(Boolean) as SpeedSegment[]
+  const validB = segB.filter(Boolean) as SpeedSegment[]
+  const avgA = validA.length ? Math.round(validA.reduce((s, x) => s + x.speed, 0) / validA.length * 10) / 10 : 0
+  const avgB = validB.length ? Math.round(validB.reduce((s, x) => s + x.speed, 0) / validB.length * 10) / 10 : 0
+  const maxA = validA.length ? Math.max(...validA.map(s => s.speed)) : 0
+  const maxB = validB.length ? Math.max(...validB.map(s => s.speed)) : 0
+
+  const hasData = validA.length > 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between p-5 border-b border-slate-100">
           <div>
-            <h2 className="font-bold text-slate-900 text-lg">{runner.userName}</h2>
-            <p className="text-sm text-slate-500">{runner.teamName || 'Sin equipo'} · Velocidad por tramo</p>
+            <h2 className="font-bold text-slate-900 text-lg">Velocidad por tramo</h2>
+            <p className="text-sm text-slate-500">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500 mr-1 align-middle" />
+              {runner.userName}
+              {compareRunner && (
+                <>
+                  <span className="mx-2 text-slate-300">vs</span>
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500 mr-1 align-middle" />
+                  {compareRunner.userName}
+                </>
+              )}
+            </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -200,33 +265,58 @@ function SpeedChartModal({ runner, waypoints, onClose }: { runner: RankingEntry;
         </div>
 
         <div className="p-5">
-          {segments.length === 0 ? (
+          {/* Compare selector */}
+          <div className="flex items-center gap-2 mb-5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide whitespace-nowrap">Comparar con:</span>
+            <select
+              value={compareUuid}
+              onChange={e => setCompareUuid(e.target.value)}
+              className="flex-1 text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">— Sin comparación</option>
+              {allRunners.filter(r => r.userUuid !== runner.userUuid).map(r => (
+                <option key={r.userUuid} value={r.userUuid}>{r.userName}</option>
+              ))}
+            </select>
+          </div>
+
+          {!hasData ? (
             <p className="text-center text-slate-400 py-10">No hay suficientes datos para calcular velocidades.</p>
           ) : (
             <>
-              <div className="flex gap-3 mb-5">
-                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-slate-400 uppercase font-semibold tracking-wide">Velocidad media</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{avg} <span className="text-sm font-normal text-slate-500">km/h</span></p>
+              {/* Stats */}
+              <div className={`grid gap-3 mb-5 ${compareRunner ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
+                  <p className="text-xs text-green-600 uppercase font-semibold tracking-wide truncate">{runner.userName.split(' ')[0]}</p>
+                  <p className="text-xl font-bold text-green-800 mt-1">{avgA} <span className="text-xs font-normal text-green-500">km/h</span></p>
+                  <p className="text-xs text-green-500">máx {maxA}</p>
                 </div>
-                <div className="flex-1 bg-green-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-green-600 uppercase font-semibold tracking-wide">Tramo más rápido</p>
-                  <p className="text-2xl font-bold text-green-700 mt-1">{max} <span className="text-sm font-normal text-green-500">km/h</span></p>
-                </div>
-                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-slate-400 uppercase font-semibold tracking-wide">Tramos</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{segments.length}</p>
-                </div>
+                {compareRunner ? (
+                  <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+                    <p className="text-xs text-blue-600 uppercase font-semibold tracking-wide truncate">{compareRunner.userName.split(' ')[0]}</p>
+                    <p className="text-xl font-bold text-blue-800 mt-1">{avgB} <span className="text-xs font-normal text-blue-400">km/h</span></p>
+                    <p className="text-xs text-blue-400">máx {maxB}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-slate-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-slate-400 uppercase font-semibold tracking-wide">Más rápido</p>
+                      <p className="text-xl font-bold text-slate-800 mt-1">{maxA} <span className="text-xs font-normal text-slate-400">km/h</span></p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-slate-400 uppercase font-semibold tracking-wide">Tramos</p>
+                      <p className="text-xl font-bold text-slate-800 mt-1">{validA.length}</p>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="text-xs text-slate-400 flex items-center gap-3 mb-3">
-                <span className="flex items-center gap-1"><span className="inline-block w-8 border-t border-dashed border-amber-400" /> Velocidad media</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-green-600" /> Más rápido</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-green-400" /> Sobre media</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-green-200" /> Bajo media</span>
-              </div>
-
-              <SpeedBarChart segments={segments} />
+              <SpeedCompareChart
+                segA={segA} segB={segB}
+                nameA={runner.userName} nameB={compareRunner?.userName}
+                waypoints={waypoints}
+              />
             </>
           )}
         </div>
@@ -706,6 +796,7 @@ export default function Results() {
         <SpeedChartModal
           runner={selectedRunner}
           waypoints={trail?.waypoints || []}
+          allRunners={rankings}
           onClose={() => setSelectedRunner(null)}
         />
       )}
