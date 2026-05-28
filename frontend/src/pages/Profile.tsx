@@ -22,7 +22,7 @@ function StatusBadge({ run }: { run: RunHistoryEntry }) {
   return <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">En carrera</span>
 }
 
-function ProfileTab({ user, onSaved }: { user: { nombre: string; activityType: string; team: string; role: string }; onSaved: (nombre: string, activityType: string) => void }) {
+function ProfileTab({ user, onSaved }: { user: { nombre: string; activityType?: string; team: string; role: string }; onSaved: (nombre: string, activityType: string) => void }) {
   const [nombre, setNombre] = useState(user.nombre)
   const [activityType, setActivityType] = useState(user.activityType || 'runner')
   const [saving, setSaving] = useState(false)

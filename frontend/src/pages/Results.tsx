@@ -51,31 +51,7 @@ interface SpeedSegment {
   timeMin: number
 }
 
-function buildSpeedSegments(runner: RankingEntry, waypoints: Waypoint[]): SpeedSegment[] {
-  if (!runner.waypointTimes?.length) return []
-  const sorted = [...waypoints].sort((a, b) => a.order - b.order)
-  const segments: SpeedSegment[] = []
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const wpA = sorted[i]
-    const wpB = sorted[i + 1]
-    const timeA = runner.waypointTimes.find(t => t.waypointUuid === wpA.waypointUuid)
-    const timeB = runner.waypointTimes.find(t => t.waypointUuid === wpB.waypointUuid)
-    if (!timeA || !timeB) continue
-    const distKm = haversineKm(wpA.lat, wpA.lon, wpB.lat, wpB.lon)
-    const timeHours = (timeB.timestamp - timeA.timestamp) / 3_600_000
-    if (timeHours <= 0) continue
-    const nameA = wpA.name || `WP${wpA.order + 1}`
-    const nameB = wpB.name || `WP${wpB.order + 1}`
-    segments.push({
-      label: nameB,
-      fullLabel: `${nameA} → ${nameB}`,
-      speed: Math.round((distKm / timeHours) * 10) / 10,
-      distanceKm: Math.round(distKm * 100) / 100,
-      timeMin: Math.round((timeB.timestamp - timeA.timestamp) / 6000) / 10,
-    })
-  }
-  return segments
-}
+
 
 // Build all possible segments using all waypoints (not just those the runner reached)
 // Returns speed for each segment, or null if data is missing

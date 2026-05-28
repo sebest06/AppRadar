@@ -64,9 +64,9 @@ api.interceptors.response.use(
 // Auth
 export const authApi = {
   login: (user: string, passw: string) =>
-    api.post<{ token: string; user: import('../types').User }>('/auth/login', { user, passw }),
+    api.post<{ token: string; refreshToken: string; user: import('../types').User }>('/auth/login', { user, passw }),
   register: (data: { user: string; passw: string; nombre: string; team?: string; uuid_team?: string; role?: string }) =>
-    api.post<{ token: string; user: import('../types').User }>('/auth/register', data),
+    api.post<{ token: string; refreshToken: string; user: import('../types').User }>('/auth/register', data),
 }
 
 // Categories
@@ -111,6 +111,7 @@ export const trailsApi = {
 }
 
 export type { Paginated } from '../types'
+import type { Paginated } from '../types'
 
 // Rankings
 export const rankingsApi = {
