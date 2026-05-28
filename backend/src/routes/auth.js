@@ -119,7 +119,7 @@ function createAuthRouter(db) {
     res.json({ data: runs, total, limit, offset })
   })
 
-  router.post('/auth/refresh', (req, res) => {
+  router.post('/refresh', (req, res) => {
     const { refreshToken } = req.body
     if (!refreshToken) return res.status(400).json({ error: 'refreshToken requerido' })
     try {

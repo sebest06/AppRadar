@@ -76,12 +76,12 @@ export const categoriesApi = {
 
 // Me / Profile
 export const meApi = {
-  get: () => api.get<import('../types').User>('/me'),
-  update: (data: { nombre?: string; activityType?: string }) => api.put<import('../types').User>('/me', data),
+  get: () => api.get<import('../types').User>('/auth/me'),
+  update: (data: { nombre?: string; activityType?: string }) => api.put<import('../types').User>('/auth/me', data),
   changePassword: (currentPassword: string, newPassword: string) =>
-    api.put('/me/password', { currentPassword, newPassword }),
+    api.put('/auth/me/password', { currentPassword, newPassword }),
   history: (options?: { limit?: number; offset?: number }) =>
-    api.get<import('../types').Paginated<import('../types').RunHistoryEntry>>('/me/history', { params: options }),
+    api.get<import('../types').Paginated<import('../types').RunHistoryEntry>>('/auth/me/history', { params: options }),
 }
 
 // Teams
