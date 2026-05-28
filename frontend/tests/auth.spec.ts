@@ -6,7 +6,7 @@ test.describe('Autenticación', () => {
     await loginViaUI(page)
 
     await expect(page).toHaveURL('/')
-    await expect(page.getByText('Admin', { exact: false })).toBeVisible()
+    await expect(page.getByRole('link', { name: /admin user/i })).toBeVisible()
   })
 
   test('credenciales incorrectas muestran mensaje de error', async ({ page }) => {
