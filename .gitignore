@@ -28,3 +28,17 @@ Thumbs.db
 # Keystore (Si alguna vez creas uno para release, asegurate de que no se suba)
 *.jks
 *.keystore
+
+# Backend
+backend/.env
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+backend/data/backup/
+
+# Frontend build
+frontend/dist/
+frontend/node_modules/
+
+# Node
+node_modules/
