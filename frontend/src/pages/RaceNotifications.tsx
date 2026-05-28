@@ -24,25 +24,28 @@ export default function RaceNotifications() {
   const [activeSession, setActiveSession] = useState<string>('')
   const [events, setEvents] = useState<RaceEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [eventsError, setEventsError] = useState(false)
 
   useEffect(() => {
     if (!id) return
     Promise.all([
       trailsApi.details(id),
-      racesApi.sessions(id),
+      racesApi.sessions(id, { limit: 100 }),
     ]).then(([trailRes, sessRes]) => {
       setTrail(trailRes.data)
-      setSessions(sessRes.data)
-      if (sessRes.data.length > 0) setActiveSession(sessRes.data[0].sessionUuid)
-    }).catch(() => {}).finally(() => setLoading(false))
+      setSessions(sessRes.data.data)
+      if (sessRes.data.data.length > 0) setActiveSession(sessRes.data.data[0].sessionUuid)
+    }).catch(() => setError(true)).finally(() => setLoading(false))
   }, [id])
 
   useEffect(() => {
     if (!id) return
     setLoading(true)
+    setEventsError(false)
     racesApi.events(id, activeSession || undefined)
       .then((r) => setEvents(r.data))
-      .catch(() => setEvents([]))
+      .catch(() => setEventsError(true))
       .finally(() => setLoading(false))
   }, [id, activeSession])
 
@@ -50,6 +53,20 @@ export default function RaceNotifications() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 px-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        </div>
+        <p className="text-slate-700 font-medium">No se pudo cargar la carrera.<br/>Verificá tu conexión e intentá de nuevo.</p>
+        <button onClick={() => window.location.reload()} className="btn-primary text-sm py-2 px-4">
+          Reintentar
+        </button>
       </div>
     )
   }
@@ -119,6 +136,14 @@ export default function RaceNotifications() {
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="w-7 h-7 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : eventsError ? (
+        <div className="card flex items-center gap-4 p-5 border-l-4 border-red-400">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          <p className="text-slate-700 text-sm flex-1">No se pudieron cargar los eventos.</p>
+          <button onClick={() => setEventsError(false)} className="text-sm text-green-600 hover:text-green-700 font-semibold whitespace-nowrap">
+            Reintentar
+          </button>
         </div>
       ) : events.length === 0 ? (
         <div className="card p-10 text-center text-slate-400">

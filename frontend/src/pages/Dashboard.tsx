@@ -115,28 +115,34 @@ export default function Dashboard() {
   const [requests, setRequests] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
     trailsApi.list()
       .then((r) => setTrails(r.data))
       .catch(() => setError('Error al cargar las carreras'))
       .finally(() => setLoading(false))
-      
+
     if (user?.role === 'organizer') {
       teamsApi.getRequests().then(r => setRequests(r.data)).catch(() => {})
     }
   }, [user])
 
+  function showActionError(msg: string) {
+    setActionError(msg)
+    setTimeout(() => setActionError(''), 4000)
+  }
+
   const handleDelete = (id: string) => {
     trailsApi.delete(id).then(() => {
       setTrails(t => t.filter(x => x.trailUuid !== id))
-    }).catch(() => alert('Error al eliminar la carrera'))
+    }).catch(() => showActionError('No se pudo eliminar la carrera. Intentá de nuevo.'))
   }
 
   const handleRequest = (userId: string, action: 'accept' | 'reject') => {
     const apiCall = action === 'accept' ? teamsApi.acceptRequest(userId) : teamsApi.rejectRequest(userId)
     apiCall.then(() => setRequests(reqs => reqs.filter(r => r.uuid !== userId)))
-      .catch(() => alert('Error al procesar la solicitud'))
+      .catch(() => showActionError('No se pudo procesar la solicitud. Intentá de nuevo.'))
   }
 
   const liveCount = trails.filter((t) => t.isActive).length
@@ -202,6 +208,16 @@ export default function Dashboard() {
       )}
 
       {/* States */}
+      {actionError && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          <span className="text-sm flex-1">{actionError}</span>
+          <button onClick={() => setActionError('')} className="text-red-500 hover:text-red-700">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

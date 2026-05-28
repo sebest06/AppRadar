@@ -442,11 +442,14 @@ export default function Results() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [rankingsError, setRankingsError] = useState<string | null>(null)
   const [deletingSession, setDeletingSession] = useState<string | null>(null)
   const [selectedRunner, setSelectedRunner] = useState<RankingEntry | null>(null)
 
   useEffect(() => {
     if (!id) return
+    setError(null)
     Promise.all([trailsApi.details(id), racesApi.sessions(id, { limit: SESSIONS_LIMIT, offset: 0 })])
       .then(([t, s]) => {
         setTrail(t.data)
@@ -455,14 +458,17 @@ export default function Results() {
         setSessionsOffset(0)
         if (s.data.data.length > 0) setSelectedSession(s.data.data[0].sessionUuid)
       })
+      .catch(() => setError('No se pudo cargar la carrera. Verificá tu conexión e intentá de nuevo.'))
   }, [id])
 
   useEffect(() => {
     if (!id) return
     setLoading(true)
+    setRankingsError(null)
     setRankingsOffset(0)
     rankingsApi.get(id, { sessionUuid: selectedSession ?? undefined, limit: RANKINGS_LIMIT, offset: 0 })
       .then(r => { setRankings(r.data.data); setRankingsTotal(r.data.total) })
+      .catch(() => setRankingsError('No se pudieron cargar los resultados.'))
       .finally(() => setLoading(false))
   }, [id, selectedSession])
 
@@ -501,6 +507,20 @@ export default function Results() {
     } finally {
       setDeletingSession(null)
     }
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 px-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        </div>
+        <p className="text-slate-700 font-medium">{error}</p>
+        <button onClick={() => { setError(null); window.location.reload() }} className="btn-primary text-sm py-2 px-4">
+          Reintentar
+        </button>
+      </div>
+    )
   }
 
   if (loading) {
@@ -580,6 +600,17 @@ export default function Results() {
       {loading ? (
         <div className="flex items-center justify-center h-40">
           <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : rankingsError ? (
+        <div className="card flex items-center gap-4 p-5 border-l-4 border-red-400">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          <p className="text-slate-700 text-sm flex-1">{rankingsError}</p>
+          <button
+            onClick={() => { setRankingsError(null); setSelectedSession(s => s) }}
+            className="text-sm text-green-600 hover:text-green-700 font-semibold whitespace-nowrap"
+          >
+            Reintentar
+          </button>
         </div>
       ) : rankings.length === 0 ? (
         <div className="card text-center py-16 px-6">

@@ -215,6 +215,7 @@ export default function LiveRace() {
   const [positions, setPositions] = useState<Map<string, LivePosition>>(new Map())
   const [rankings, setRankings] = useState<RankingEntry[]>([])
   const [connected, setConnected] = useState(false)
+  const [trailError, setTrailError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'map' | 'board'>('map')
   const [teamFilter, setTeamFilter] = useState<'general' | 'team'>('general')
@@ -237,7 +238,10 @@ export default function LiveRace() {
 
   useEffect(() => {
     if (!id) return
-    trailsApi.details(id).then((r) => setTrail(r.data)).finally(() => setLoading(false))
+    trailsApi.details(id)
+      .then((r) => setTrail(r.data))
+      .catch(() => setTrailError(true))
+      .finally(() => setLoading(false))
   }, [id])
 
   // Load sessions on mount + auto-refresh every 30s to detect new race sessions
@@ -366,6 +370,20 @@ export default function LiveRace() {
     )
   }
 
+  if (trailError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] gap-4 px-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        </div>
+        <p className="text-slate-700 font-medium">No se pudo cargar la carrera.<br/>Verificá tu conexión e intentá de nuevo.</p>
+        <button onClick={() => window.location.reload()} className="btn-primary text-sm py-2 px-4">
+          Reintentar
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] relative">
       {/* Real-time Notifications */}
@@ -382,6 +400,16 @@ export default function LiveRace() {
           </div>
         ))}
       </div>
+
+      {/* Disconnection banner */}
+      {!connected && !loading && (
+        <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+          <p className="text-amber-800 text-xs font-medium flex-1">
+            Sin conexión en tiempo real — los datos pueden estar desactualizados. Reconectando...
+          </p>
+        </div>
+      )}
 
       {/* Header bar */}
       <div className="flex-shrink-0 bg-white border-b border-slate-100 px-4 sm:px-6 py-3">
