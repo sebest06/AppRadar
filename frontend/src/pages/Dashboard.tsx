@@ -145,7 +145,17 @@ export default function Dashboard() {
       .catch(() => showActionError('No se pudo procesar la solicitud. Intentá de nuevo.'))
   }
 
+  const [filter, setFilter] = useState<'all' | 'live' | 'mine'>('all')
+  const [search, setSearch] = useState('')
+
   const liveCount = trails.filter((t) => t.isActive).length
+
+  const visibleTrails = trails.filter((t) => {
+    if (filter === 'live' && !t.isActive) return false
+    if (filter === 'mine' && t.createdBy !== user?.uuid) return false
+    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
@@ -207,6 +217,45 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Filter bar */}
+      {!loading && !error && trails.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
+          <div className="flex gap-1 bg-slate-100 rounded-xl p-1 flex-shrink-0">
+            {([
+              { key: 'all', label: 'Todas' },
+              { key: 'live', label: `En vivo${liveCount > 0 ? ` (${liveCount})` : ''}` },
+              { key: 'mine', label: 'Mis carreras' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                  filter === key
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar carrera..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* States */}
       {actionError && (
         <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
@@ -258,24 +307,41 @@ export default function Dashboard() {
 
       {/* Grid */}
       {!loading && trails.length > 0 && (
-        <>
-          {liveCount > 0 && (
-            <div className="mb-6">
-              <h2 className="text-xs font-semibold text-green-600 uppercase tracking-wider mb-3">En vivo ahora</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {trails.filter((t) => t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
+        visibleTrails.length === 0 ? (
+          <div className="card text-center py-14 px-6 text-slate-400">
+            <svg width="36" height="36" className="mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <p className="font-medium text-slate-600">Sin resultados</p>
+            <p className="text-sm mt-1">
+              {search ? `No hay carreras que coincidan con "${search}".` : 'No hay carreras en esta categoría.'}
+            </p>
+            <button onClick={() => { setFilter('all'); setSearch('') }} className="mt-3 text-sm text-green-600 hover:text-green-700 font-semibold">
+              Ver todas
+            </button>
+          </div>
+        ) : filter === 'all' && !search ? (
+          <>
+            {liveCount > 0 && (
+              <div className="mb-6">
+                <h2 className="text-xs font-semibold text-green-600 uppercase tracking-wider mb-3">En vivo ahora</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {visibleTrails.filter((t) => t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
+                </div>
               </div>
-            </div>
-          )}
-          {trails.some((t) => !t.isActive) && (
-            <div>
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Todas las carreras</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {trails.filter((t) => !t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
+            )}
+            {visibleTrails.some((t) => !t.isActive) && (
+              <div>
+                <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Inactivas</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {visibleTrails.filter((t) => !t.isActive).map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
+                </div>
               </div>
-            </div>
-          )}
-        </>
+            )}
+          </>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visibleTrails.map((t) => <RaceCard key={t.trailUuid} trail={t} user={user} onDelete={handleDelete} />)}
+          </div>
+        )
       )}
     </div>
   )
