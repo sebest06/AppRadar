@@ -652,12 +652,20 @@ export default function Results() {
             </button>
           </div>
         </div>
-        <Link
-          to={`/races/${id}/live`}
-          className="btn-primary flex-shrink-0 text-sm py-2 px-4"
-        >
-          Ver en vivo
-        </Link>
+        <div className="flex gap-2 flex-shrink-0">
+          <Link
+            to={`/races/${id}/replay${selectedSession ? `?session=${selectedSession}` : ''}`}
+            className="btn-ghost text-sm py-2 px-4"
+          >
+            ▶ Replay
+          </Link>
+          <Link
+            to={`/races/${id}/live`}
+            className="btn-primary text-sm py-2 px-4"
+          >
+            Ver en vivo
+          </Link>
+        </div>
       </div>
 
       {sessions.length > 0 && (

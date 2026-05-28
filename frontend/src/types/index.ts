@@ -83,6 +83,23 @@ export interface RaceEvent {
   startTime: number | null
 }
 
+export interface ReplayRunner {
+  userUuid: string
+  userName: string
+  teamName: string
+  activityType: 'runner' | 'bike' | 'car'
+  isCompleted: boolean
+  isAbandoned: boolean
+  sos: boolean
+  positions: { lat: number; lon: number; timestamp: number }[]
+}
+
+export interface ReplayData {
+  runners: ReplayRunner[]
+  startTime: number
+  endTime: number
+}
+
 export interface Category {
   categoryUuid: string
   name: string

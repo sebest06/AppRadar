@@ -111,6 +111,40 @@ function createRacesRouter(db) {
     res.json(positions)
   })
 
+  router.get('/races/:trailId/replay', (req, res) => {
+    const { trailId } = req.params
+    const { sessionUuid } = req.query
+
+    const runs = db.prepare(`
+      SELECT rr.runUuid, rr.userUuid, rr.startTime, rr.endTime, rr.isCompleted, rr.isAbandoned, rr.sos,
+             u.nombre as userName, u.team as teamName, u.activityType
+      FROM race_runs rr JOIN users u ON u.uuid = rr.userUuid
+      WHERE rr.trailUuid = ? ${sessionUuid ? 'AND rr.sessionUuid = ?' : ''}
+    `).all(trailId, ...(sessionUuid ? [sessionUuid] : []))
+
+    if (!runs.length) return res.json({ runners: [], startTime: 0, endTime: 0 })
+
+    const ph = runs.map(() => '?').join(',')
+    const userUuids = runs.map(r => r.userUuid)
+
+    const sessionStart = runs.reduce((min, r) => r.startTime && r.startTime < min ? r.startTime : min, Infinity)
+    const lastGps = db.prepare(`SELECT MAX(timestamp) as t FROM gps_positions WHERE trailUuid = ? AND userUuid IN (${ph})`).get(trailId, ...userUuids)
+    const sessionEnd = lastGps?.t || Date.now()
+
+    const runners = runs.map(run => ({
+      userUuid: run.userUuid,
+      userName: run.userName,
+      teamName: run.teamName,
+      activityType: run.activityType || 'runner',
+      isCompleted: run.isCompleted === 1,
+      isAbandoned: run.isAbandoned === 1,
+      sos: run.sos === 1,
+      positions: db.prepare('SELECT lat, lon, timestamp FROM gps_positions WHERE userUuid = ? AND trailUuid = ? ORDER BY timestamp ASC').all(run.userUuid, trailId),
+    })).filter(r => r.positions.length > 0)
+
+    res.json({ runners, startTime: sessionStart, endTime: sessionEnd })
+  })
+
   router.get('/races/:trailId/events', (req, res) => {
     const { sessionUuid } = req.query
     const base = `

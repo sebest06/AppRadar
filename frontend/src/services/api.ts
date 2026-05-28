@@ -132,4 +132,6 @@ export const racesApi = {
     api.get<import('../types').RaceEvent[]>(`/races/${trailId}/events`, { params: sessionUuid ? { sessionUuid } : {} }),
   deleteSession: (sessionUuid: string) =>
     api.delete(`/races/sessions/${sessionUuid}`),
+  replay: (trailId: string, sessionUuid?: string) =>
+    api.get<import('../types').ReplayData>(`/races/${trailId}/replay`, { params: sessionUuid ? { sessionUuid } : {} }),
 }

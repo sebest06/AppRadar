@@ -11,6 +11,7 @@ import Results from './pages/Results'
 import RaceNotifications from './pages/RaceNotifications'
 import Profile from './pages/Profile'
 import EditRace from './pages/EditRace'
+import Replay from './pages/Replay'
 
 const queryClient = new QueryClient()
 
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/races/:id/notifications" element={<RaceNotifications />} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/races/:id/edit" element={<ProtectedRoute><EditRace /></ProtectedRoute>} />
+            <Route path="/races/:id/replay" element={<Replay />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
