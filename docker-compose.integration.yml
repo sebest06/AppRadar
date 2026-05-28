@@ -1,0 +1,47 @@
+# Backend para tests de integración Android (Maestro)
+#
+# Maestro se ejecuta desde el HOST (no en Docker) y se conecta a este backend.
+# La DB se crea fresh en cada ejecución (sin volumen persistente) para tests limpios.
+#
+# Flujo completo:
+#
+#   1. Levantar el backend:
+#        docker compose -f docker-compose.integration.yml up -d
+#        docker compose -f docker-compose.integration.yml wait backend
+#
+#   2. Sembrar datos de prueba (opcional — requerido por 05_race_start_stop.yaml):
+#        ./scripts/seed_integration.sh
+#
+#   3. Instalar la app en el dispositivo/emulador y ejecutar Maestro:
+#        # Para emulador Android:
+#        maestro test tests/android/suites/smoke.yaml -e API_URL=http://10.0.2.2:3000/
+#        # Para dispositivo físico (misma red WiFi):
+#        maestro test tests/android/suites/smoke.yaml -e API_URL=http://$(hostname -I | awk '{print $1}'):3000/
+#
+#   4. Bajar el backend al terminar:
+#        docker compose -f docker-compose.integration.yml down
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      # Expuesto al host para que Maestro y el dispositivo Android puedan conectarse
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: integration_test_secret
+      RACE_COOLDOWN_MINUTES: 0
+      # DB en memoria del contenedor — se resetea al reiniciar (tests limpios)
+      DATABASE_PATH: /tmp/appradar_integration.db
+      CORS_ORIGINS: "*"
+    # Sin volumen persistente → DB fresca en cada run
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s

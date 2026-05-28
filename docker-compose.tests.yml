@@ -1,0 +1,60 @@
+# Ejecuta todos los tests automatizados en Docker
+#
+# Incluye:
+#   - Tests unitarios del backend (Jest, 94 tests)
+#   - Tests E2E del frontend (Playwright, Chromium)
+#
+# Playwright arranca automáticamente el backend y el frontend Vite
+# dentro del mismo contenedor gracias a la configuración en playwright.config.ts
+#
+# Uso:
+#   docker compose -f docker-compose.tests.yml up --exit-code-from tests
+#   docker compose -f docker-compose.tests.yml down -v   # limpia los volúmenes de caché
+
+services:
+  tests:
+    image: node:20
+    working_dir: /workspace/frontend
+    volumes:
+      - .:/workspace
+      # Cachés de node_modules para no reinstalar en cada ejecución
+      - test_backend_modules:/workspace/backend/node_modules
+      - test_frontend_modules:/workspace/frontend/node_modules
+      # Browsers de Playwright cacheados entre runs
+      - playwright_browsers:/playwright-browsers
+    environment:
+      CI: 'true'
+      PLAYWRIGHT_BROWSERS_PATH: /playwright-browsers
+    command: >
+      bash -c "
+        set -e
+
+        echo ''
+        echo '======================================'
+        echo ' [1/3] Dependencias backend          '
+        echo '======================================'
+        cd /workspace/backend && npm ci
+
+        echo ''
+        echo '======================================'
+        echo ' [2/3] Tests unitarios backend (Jest) '
+        echo '======================================'
+        npm test
+
+        echo ''
+        echo '======================================'
+        echo ' [3/3] Tests E2E (Playwright)         '
+        echo '======================================'
+        cd /workspace/frontend
+        npm ci
+        npx playwright install --with-deps chromium
+        npx playwright test
+
+        echo ''
+        echo 'Todos los tests pasaron correctamente'
+      "
+
+volumes:
+  test_backend_modules:
+  test_frontend_modules:
+  playwright_browsers:

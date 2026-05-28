@@ -1,0 +1,34 @@
+# Deploy local para uso personal
+#
+# Uso:
+#   docker compose -f docker-compose.local.yml up -d
+#
+# No requiere configurar variables de entorno.
+# Accedé a la app en: http://localhost:3000
+# Los datos se guardan en ./backend/data/ (visible en tu carpeta local)
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Clave local — cámbiala si exponés el servidor a la red
+      JWT_SECRET: appradar_local_dev_secret_cambiar_si_expones
+      # Sin cooldown para poder hacer pruebas rápidas
+      RACE_COOLDOWN_MINUTES: 0
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      # Montaje directo en tu directorio local para ver y hacer backup de la DB fácilmente
+      - ./backend/data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

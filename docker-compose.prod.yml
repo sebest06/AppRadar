@@ -1,0 +1,41 @@
+# Deploy en servidor de producción
+#
+# Uso:
+#   JWT_SECRET=mi_clave_secreta \
+#   CORS_ORIGINS=https://tudominio.com \
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Para rebuild después de cambios en el código:
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it in the env or .env file}
+      RACE_COOLDOWN_MINUTES: ${RACE_COOLDOWN_MINUTES:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required — set the public URL of your frontend}
+    volumes:
+      - appradar_prod_data:/app/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  appradar_prod_data:
+    name: appradar_prod_data
