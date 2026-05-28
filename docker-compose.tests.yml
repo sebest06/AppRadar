@@ -13,7 +13,7 @@
 
 services:
   tests:
-    image: node:20
+    image: node:22
     working_dir: /workspace/frontend
     volumes:
       - .:/workspace
