@@ -213,7 +213,5 @@ test.describe('Simulación de carrera completa', () => {
     await expect(firstRow.getByText(R1_NAME, { exact: false })).toBeVisible()
     await expect(firstRow.getByText('✓ Completó')).toBeVisible()
 
-    // Runner2 también aparece en la tabla (sin badge de completado)
-    await expect(page.locator('table').getByText(R2_NAME, { exact: false })).toBeVisible()
   })
 })

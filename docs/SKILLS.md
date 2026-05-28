@@ -1,106 +1,99 @@
-# Skills y Tecnologías Requeridas — AppRadar
+# Skills y Tecnologías — AppRadar
 
-## Backend
-
-### Core (Ya existe / Completar)
-- **Node.js + Express** — ya implementado, requiere refactoring
-  - Agregar persistencia con `better-sqlite3` o `knex` + migrations
-  - Estructurar en módulos: `routes/`, `controllers/`, `models/`, `middleware/`
-
-### Autenticación
-- **`jsonwebtoken`** — generar y validar JWT tokens
-- **`bcryptjs`** — hashear contraseñas
-- **`express-rate-limit`** — limitar intentos de login
-
-### Tiempo Real
-- **`socket.io`** v4 — WebSocket server para posiciones GPS en vivo
-  - Rooms por carrera (`race:${raceId}`)
-  - Eventos: `join_race`, `position_update`, `position_broadcast`, `waypoint_reached`
-
-### Base de Datos
-- **`better-sqlite3`** (MVP) — SQLite síncrono, simple, sin dependencias externas
-- **`knex`** — query builder + sistema de migrations (reemplaza SQL manual)
-- Alternativa avanzada: **PostgreSQL + PostGIS** para consultas geoespaciales nativas
-
-### Validación y Seguridad
-- **`zod`** o **`joi`** — validación de payloads de entrada
-- **`helmet`** — headers de seguridad HTTP
-- **`cors`** — ya implementado, configurar para producción
-
-### Infraestructura
-- **Docker** — `Dockerfile` + `docker-compose.yml` para dev y producción
-- **`dotenv`** — variables de entorno
-- **`winston`** o **`pino`** — logging estructurado
+Estado actual de implementación de cada tecnología en el proyecto.
 
 ---
 
-## Frontend (ReactJS — Por crear)
+## Backend (✅ Completado)
 
-### Setup
-- **Vite** — build tool (más rápido que CRA)
-- **TypeScript** — tipado estático
-- **`react-router-dom` v6** — routing con rutas protegidas
+| Tecnología | Estado | Uso |
+|------------|--------|-----|
+| Node.js 22 + Express 4 | ✅ | Framework HTTP, dividido en `src/routes/`, `src/middleware/`, `src/services/` |
+| better-sqlite3 | ✅ | Persistencia SQLite síncrona, sin ORM |
+| Socket.IO v4 | ✅ | WebSocket con rooms por carrera (`race:<trailUuid>`) |
+| jsonwebtoken | ✅ | Access token (1h) + refresh token (30d) |
+| bcryptjs | ✅ | Hash de contraseñas con factor 10 |
+| zod | ✅ | Validación de inputs en todos los endpoints |
+| cors | ✅ | Configurado via `CORS_ORIGINS` |
+| Docker multi-stage | ✅ | Build frontend + deps nativas + imagen final Alpine |
 
-### UI/UX
-- **Tailwind CSS** — estilos utilitarios, responsive
-- **`shadcn/ui`** o **`@headlessui/react`** — componentes accesibles sin vendor lock-in
-- Alternativa: **Ant Design** o **Material UI** si se prefiere UI más completa lista para usar
-
-### Mapas (CRÍTICO)
-- **`leaflet`** + **`react-leaflet`** — mapas OpenStreetMap, gratuitos, sin API key
-  - Visualizar ruta del trail (GeoJSON/GPX)
-  - Marcadores de corredores con actualización en tiempo real
-  - Marcadores de waypoints (alcanzado / pendiente)
-  - Layers para OSM tile server
-
-### Tiempo Real
-- **`socket.io-client`** v4 — recibir posiciones GPS en vivo
-  - Hook custom `useRaceSocket(raceId)` para gestionar conexión
-
-### Estado y Datos
-- **`@tanstack/react-query`** v5 — fetching, caching, revalidación automática
-- **`zustand`** — estado global ligero (user auth, config)
-
-### HTTP
-- **`axios`** — cliente HTTP con interceptor para JWT token
-
-### Formularios
-- **`react-hook-form`** + **`zod`** — formularios con validación
-
-### GPX / Geo
-- **`leaflet-gpx`** — parsear y visualizar archivos GPX en el mapa
-- **`toGeoJSON`** — convertir GPX a GeoJSON
+### Pendiente (backend)
+- `helmet` — headers de seguridad HTTP
+- `express-rate-limit` — limitar intentos de login
+- PostgreSQL — migración desde SQLite cuando escale
 
 ---
 
-## Android (Mejoras pendientes)
+## Frontend Web (✅ Completado)
 
-### WebSocket
-- **`socket.io-client`** para Android (`io.socket:socket.io-client:2.1.0`)
-  - Enviar posición GPS al servidor cada 15 segundos durante carrera activa
-  - Recibir posiciones de compañeros de equipo en tiempo real
+| Tecnología | Estado | Uso |
+|------------|--------|-----|
+| React 19 + TypeScript | ✅ | Framework UI con tipado estático |
+| Vite 6 | ✅ | Build tool y dev server |
+| React Router v7 | ✅ | Routing con rutas protegidas por JWT |
+| Tailwind CSS v4 | ✅ | Estilos utilitarios |
+| Leaflet + react-leaflet | ✅ | Mapa con marcadores de corredores y waypoints |
+| Socket.IO Client | ✅ | Posiciones GPS en tiempo real |
+| @tanstack/react-query | ✅ | Fetching y caché de datos |
+| Zustand | ✅ | Estado global (auth) |
 
-### Mapas de Compañeros
-- **OSMDroid** (ya implementado) — agregar marcadores dinámicos para compañeros
-  - Custom marker con nombre del corredor
-  - Animación suave al actualizar posición
+### Páginas implementadas
+- `/login` — autenticación con JWT
+- `/` — dashboard con filtros (todas / en vivo / mis carreras) y búsqueda
+- `/races/new` — crear carrera con waypoints manuales o GPX
+- `/races/:id/edit` — editar nombre y descripción de carrera
+- `/races/:id/live` — vista en vivo con mapa Leaflet + ranking + WebSocket
+- `/races/:id/results` — resultados con podio, gráfico de velocidad y replay
+- `/races/:id/replay` — reproducción animada de la carrera
+- `/profile` — perfil de usuario, historial de carreras, cambio de contraseña
 
-### Mejoras de GPS
-- `FusedLocationProviderClient` con `Priority.PRIORITY_HIGH_ACCURACY`
-- Ajustar intervalos: 15 seg en movimiento, 60 seg en pausa
+### Pendiente (frontend)
+- Notificaciones push (Web Push API)
+- PWA / modo offline
 
 ---
 
-## DevOps / CI-CD
+## Android (Parcialmente completado)
 
-### Despliegue Recomendado (MVP)
-1. **Railway** o **Render** — push to deploy desde git, incluye PostgreSQL
-2. Variables de entorno gestionadas desde el dashboard del proveedor
-3. HTTPS automático con Let's Encrypt
+| Tecnología | Estado | Uso |
+|------------|--------|-----|
+| Kotlin + Jetpack Compose | ✅ | UI declarativa |
+| Room | ✅ | Base de datos local offline-first |
+| Retrofit | ✅ | Cliente HTTP con JWT |
+| Hilt | ✅ | Inyección de dependencias |
+| WorkManager | ✅ | Sincronización en background |
+| FusedLocationProvider | ✅ | GPS de alta precisión |
+| OSMDroid | ✅ | Mapas offline |
+| DataStore | ✅ | Preferencias (URL backend, token, ícono) |
+| WearOS (módulo :wear) | ✅ | App para reloj inteligente |
 
-### Futuro
-- **GitHub Actions** — CI para tests y lint en cada PR
-- **Docker Hub** — publicar imagen del backend
+### Pendiente (Android)
+- Mostrar posiciones de compañeros en el mapa en tiempo real (recibir WebSocket)
+- Notificaciones de progreso del equipo durante la carrera
+
+---
+
+## Testing (✅ Implementado)
+
+| Suite | Tecnología | Tests |
+|-------|------------|-------|
+| Backend unitarios | Jest | 94 tests |
+| Frontend E2E | Playwright (Chromium) | 24+ tests |
+| Android unitarios | JUnit4 + MockK + Robolectric | 33 tests |
+| Android integración | Maestro | 5 flujos |
+
+---
+
+## DevOps / CI-CD (✅ Implementado)
+
+| Herramienta | Estado | Uso |
+|-------------|--------|-----|
+| Docker multi-stage | ✅ | Imagen de producción con frontend embebido |
+| docker-compose.prod.yml | ✅ | Deploy en servidor con volumen persistente |
+| docker-compose.local.yml | ✅ | Deploy local, zero config |
+| docker-compose.tests.yml | ✅ | Jest + Playwright en Docker |
+| docker-compose.integration.yml | ✅ | Backend para tests Maestro |
+| GitHub Actions | ✅ | CI con Jest + Playwright + Docker build |
 
 ---
 
@@ -111,23 +104,7 @@
 | Android Studio | Desarrollo Android |
 | VS Code | Backend + Frontend |
 | Postman / Insomnia | Testing de la API REST |
-| Bruno (open source) | Alternativa a Postman, archivos de colección en git |
-| DBeaver | Explorar base de datos SQLite/PostgreSQL |
-| Wireshark / Charles Proxy | Debug de tráfico de red en Android |
-
----
-
-## Estimación de Esfuerzo
-
-| Área | Tareas | Estimado |
-|------|--------|----------|
-| Backend — persistencia + auth | B1, B2 | 2-3 días |
-| Backend — WebSocket | B3 | 1-2 días |
-| Backend — CRUD carreras | B4 | 1 día |
-| Backend — Docker + deploy | B5 | 0.5 días |
-| Frontend — Setup + Auth | F1, F2 | 1-2 días |
-| Frontend — Dashboard + Crear carrera | F3, F4 | 2-3 días |
-| Frontend — Vista en vivo | F5 | 2-3 días |
-| Frontend — Resultados + Perfil | F6, F7 | 1-2 días |
-| Android — WebSocket + ver compañeros | A1, A2 | 2-3 días |
-| **Total MVP completo** | | **~15-20 días** |
+| Bruno | Alternativa a Postman, colecciones en git |
+| DBeaver | Explorar base de datos SQLite |
+| Maestro | Tests de integración Android (UI automation) |
+| Playwright | Tests E2E del frontend web |

@@ -77,15 +77,16 @@ npx playwright test --headed         # con navegador visible
 npx playwright test -g "login exitoso"   # test específico
 ```
 
-### Estructura (24 tests)
+### Estructura (24+ tests)
 
 ```
 frontend/tests/
-├── helpers.ts              # apiLogin, apiCreateTrail, apiCreateRun, loginViaUI
-├── auth.spec.ts            # Login, logout, rutas protegidas (5 tests)
-├── dashboard.spec.ts       # Filtros, búsqueda, navegación (4 tests)
-├── race.spec.ts            # Crear carrera, resultados, live view, editar (11 tests)
-└── profile.spec.ts         # Perfil, historial de carreras (4 tests)
+├── helpers.ts                  # apiLogin, apiCreateTrail, apiCreateRun, loginViaUI
+├── auth.spec.ts                # Login, logout, rutas protegidas (5 tests)
+├── dashboard.spec.ts           # Filtros, búsqueda, navegación (4 tests)
+├── race.spec.ts                # Crear carrera, resultados, live view, editar (10 tests)
+├── profile.spec.ts             # Perfil, historial de carreras (4 tests)
+└── race-simulation.spec.ts     # Simulación completa: 2 corredores, GPS, ganador (1 test ~45s)
 ```
 
 ### Variables de entorno (modo E2E)
@@ -125,10 +126,7 @@ docker compose -f docker-compose.integration.yml up -d
 # 2. Esperar a que esté listo
 docker compose -f docker-compose.integration.yml wait backend
 
-# 3. Sembrar datos de prueba
-./scripts/seed_integration.sh
-
-# 4. Ejecutar Maestro desde el host
+# 3. Ejecutar Maestro desde el host
 # Emulador:
 maestro test tests/android/suites/smoke.yaml -e API_URL=http://10.0.2.2:3000/
 # Dispositivo físico:
@@ -142,8 +140,8 @@ docker compose -f docker-compose.integration.yml down
 
 | Flujo | Qué testea |
 |-------|-----------|
-| `01_login.yaml` | Login exitoso |
-| `02_login_fallido.yaml` | Campos vacíos y credenciales incorrectas |
+| `01_login_fallido.yaml` | Campos vacíos y credenciales incorrectas |
+| `02_login.yaml` | Login exitoso |
 | `03_home.yaml` | Home, sync, navegación a historial y settings |
 | `04_settings.yaml` | Selección de ícono, logout |
 | `05_race_start_stop.yaml` | Iniciar, pausar, reanudar y terminar carrera |

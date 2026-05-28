@@ -7,31 +7,25 @@ Basado en el análisis de LiveTrail, Trackleaders, RTRT.me, Traccar y proyectos 
 ## Mejoras Críticas (Bloquean funcionalidad básica)
 
 ### 1. WebSocket para posiciones en tiempo real
-**Contexto:** Actualmente el leaderboard usa polling cada 20 minutos. Las plataformas líderes (Traccar, LiveTrail) usan WebSocket para actualizaciones sub-segundo.  
-**Implementación propuesta:**
-- Backend: Socket.IO con rooms por carrera
-- Android: emitir posición GPS cada 15 segundos
-- Frontend web: recibir y renderizar marcadores dinámicos en Leaflet
-- Fallback: si WebSocket falla, reintentar con backoff exponencial (crítico en zonas de montaña con señal inestable)
+**Estado: ✅ Implementado**
+Socket.IO v4 en el backend con rooms por carrera (`race:<trailUuid>`). El frontend React recibe `position_broadcast` y `race_update` en tiempo real. El Android aún usa REST polling (pendiente migrar a WebSocket para recibir posiciones de compañeros).
 
 ### 2. Persistencia real de la base de datos
-**Contexto:** El backend actual usa arrays in-memory. Cualquier reinicio del servidor pierde todos los datos.  
-**Implementación propuesta:** SQLite con `better-sqlite3` + migrations via `knex` para MVP, migrar a PostgreSQL cuando escale.
+**Estado: ✅ Implementado**
+SQLite con `better-sqlite3`. Los datos persisten en un volumen Docker (`/app/data/appradar.db`). Migración a PostgreSQL pendiente para escala horizontal.
 
 ### 3. Autenticación real con JWT
-**Contexto:** Actualmente credenciales en texto plano sin tokens.  
-**Estándar de la industria:** JWT access token (15 min) + refresh token (7 días) en httpOnly cookie.
+**Estado: ✅ Implementado**
+JWT access token (1h) + refresh token (30d). Contraseñas hasheadas con bcryptjs. El frontend renueva el token automáticamente antes de que expire.
 
 ---
 
 ## Mejoras de Alta Prioridad
 
 ### 4. Replay de carrera (inspirado en Trackleaders)
-**Descripción:** Trackleaders es muy valorado por su función de replay. Permite a organizadores y espectadores reproducir toda la carrera con animación de marcadores.  
-**Implementación:**
-- Guardar posición GPS cada 30 segundos en tabla `gps_history`
-- Frontend: controles de reproducción (play/pause, velocidad 1x/2x/5x)
-- Valor: enorme para post-race analysis y contenido en redes sociales
+**Estado: ✅ Implementado**
+El backend guarda todas las posiciones GPS históricas. El endpoint `GET /races/:id/replay` devuelve los datos. El frontend tiene la página `/races/:id/replay` con reproducción animada de marcadores.  
+**Pendiente:** controles de velocidad (1x/2x/5x) y exportación para redes sociales.
 
 ### 5. Vista espectador optimizada para móvil
 **Descripción:** LiveTrail tiene la mejor UX para espectadores. La vista en vivo debe funcionar bien en mobile browser (espectadores en el evento).  
@@ -69,12 +63,9 @@ Basado en el análisis de LiveTrail, Trackleaders, RTRT.me, Traccar y proyectos 
 **Implementación:** `leaflet.heat` plugin, datos en tiempo real del WebSocket.
 
 ### 10. SOS / Emergencias (inspirado en LiveTrail)
-**Descripción:** LiveTrail tiene botón SOS que alerta a la organización con coordenadas exactas.  
-**Implementación:**
-- Botón SOS en la app Android (requiere confirmación en 2 pasos para evitar accidentes)
-- Alerta al organizador via WebSocket con prioridad alta
-- Almacenar incidente con coordenadas y timestamp
-- En el mapa del organizador: marcador de emergencia parpadeante
+**Estado: ✅ Parcialmente implementado**
+La app Android tiene botón SOS. El backend almacena el flag `sos` en la carrera. El mapa del frontend muestra marcador de emergencia con ícono 🆘 y badge "S.O.S" parpadeante en rojo.  
+**Pendiente:** notificación push al organizador cuando se activa el SOS.
 
 ### 11. Registro de actividad física post-carrera
 **Descripción:** FitTrackee/Strava permiten analizar los datos de la carrera después.  
@@ -112,13 +103,13 @@ Basado en el análisis de LiveTrail, Trackleaders, RTRT.me, Traccar y proyectos 
 | Feature | AppRadar actual | LiveTrail | Trackleaders | Recomendación |
 |---------|----------------|-----------|--------------|---------------|
 | GPS tracking offline | ✅ | ✅ | ✅ (satellite) | Mantener |
-| Tiempo real WebSocket | ❌ (polling) | ✅ | ✅ | Implementar en B3 |
-| Frontend web | ❌ | ✅ | ✅ | Implementar en F1-F7 |
-| Registro de usuarios | ❌ (mock) | ✅ | ✅ | Implementar en B2/F2 |
-| Crear carreras desde web | ❌ | ✅ | ✅ | Implementar en F4 |
-| Replay de carrera | ❌ | ✅ | ✅ | Mejora #4 |
+| Tiempo real WebSocket | ✅ (frontend) | ✅ | ✅ | Android pendiente |
+| Frontend web | ✅ | ✅ | ✅ | Completado |
+| Registro de usuarios | ✅ | ✅ | ✅ | Completado |
+| Crear carreras desde web | ✅ | ✅ | ✅ | Completado |
+| Replay de carrera | ✅ | ✅ | ✅ | Completado |
 | Notificaciones push | ❌ | ✅ | ❌ | Mejora #6 |
-| SOS / Emergencias | ❌ | ✅ | ❌ | Mejora #10 |
+| SOS / Emergencias | ✅ parcial | ✅ | ❌ | Push pendiente |
 | Satellite tracker support | ❌ | ❌ | ✅ | Mejora #12 (futuro) |
 | Self-hostable | ✅ | ❌ | ❌ | Ventaja competitiva |
 | Open source | ✅ | ❌ | ❌ | Ventaja competitiva |
@@ -127,8 +118,8 @@ Basado en el análisis de LiveTrail, Trackleaders, RTRT.me, Traccar y proyectos 
 
 ## Prioridad de Implementación
 
-1. **Inmediato:** Backend con persistencia real + JWT + CRUD de carreras
-2. **Siguiente:** Frontend React con auth + dashboard + vista en vivo
-3. **Después:** WebSocket en Android para posiciones de compañeros
-4. **Valor agregado:** Replay, notificaciones, SOS
-5. **Escala:** Redis, satellite trackers
+1. ~~**Inmediato:** Backend con persistencia real + JWT + CRUD de carreras~~ ✅ Completado
+2. ~~**Siguiente:** Frontend React con auth + dashboard + vista en vivo~~ ✅ Completado
+3. **Siguiente:** WebSocket en Android para recibir posiciones de compañeros en tiempo real
+4. **Valor agregado:** Notificaciones push (SOS al organizador, compañero pasa waypoint)
+5. **Escala:** Redis pub/sub, satellite trackers
