@@ -66,16 +66,21 @@ function createRacesRouter(db) {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500)
     const offset = Math.max(parseInt(req.query.offset) || 0, 0)
 
-    const sessionUuid = reqSession || latestSession(db, trailUuid)
-    let rankings = computeRankings(db, trailUuid, teamUuid || null, sessionUuid)
+    try {
+      const sessionUuid = reqSession || latestSession(db, trailUuid)
+      let rankings = computeRankings(db, trailUuid, teamUuid || null, sessionUuid)
 
-    if (categoryUuid) {
-      const usersInCategory = db.prepare('SELECT userUuid FROM users_categories WHERE categoryUuid = ?')
-        .all(categoryUuid).map(u => u.userUuid)
-      rankings = rankings.filter(r => usersInCategory.includes(r.userUuid))
+      if (categoryUuid) {
+        const usersInCategory = db.prepare('SELECT userUuid FROM users_categories WHERE categoryUuid = ?')
+          .all(categoryUuid).map(u => u.userUuid)
+        rankings = rankings.filter(r => usersInCategory.includes(r.userUuid))
+      }
+
+      res.json({ data: rankings.slice(offset, offset + limit), total: rankings.length, limit, offset })
+    } catch (err) {
+      console.error('[rankings] error:', err)
+      res.status(500).json({ error: 'Error al calcular el ranking' })
     }
-
-    res.json({ data: rankings.slice(offset, offset + limit), total: rankings.length, limit, offset })
   })
 
   router.get('/races/sessions', (req, res) => {

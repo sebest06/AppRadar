@@ -14,7 +14,7 @@ test.describe('Dashboard', () => {
   })
 
   test('los filtros Todas / En vivo / Mis carreras son funcionales', async ({ page, request }) => {
-    const token = await apiLogin(request)
+    const { token } = await apiLogin(request)
     const trail = await apiCreateTrail(request, token, `E2E Dashboard ${Date.now()}`)
 
     await page.reload()
@@ -35,7 +35,7 @@ test.describe('Dashboard', () => {
   })
 
   test('la búsqueda por nombre filtra las carreras', async ({ page, request }) => {
-    const token = await apiLogin(request)
+    const { token } = await apiLogin(request)
     const unique = `Búsqueda_${Date.now()}`
     await apiCreateTrail(request, token, unique)
     await page.reload()

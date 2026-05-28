@@ -1,4 +1,5 @@
 import { type Page, type APIRequestContext } from '@playwright/test'
+import { randomUUID } from 'crypto'
 
 export const API = 'http://localhost:3000'
 export const ADMIN = { user: 'admin', passw: '1234' }
@@ -6,7 +7,7 @@ export const ADMIN = { user: 'admin', passw: '1234' }
 export async function apiLogin(request: APIRequestContext, creds = ADMIN) {
   const res = await request.post(`${API}/auth/login`, { data: creds })
   const body = await res.json()
-  return body.token as string
+  return { token: body.token as string, userUuid: body.user.uuid as string }
 }
 
 export async function apiCreateTrail(request: APIRequestContext, token: string, name: string) {
@@ -25,6 +26,31 @@ export async function apiCreateTrail(request: APIRequestContext, token: string, 
     },
   })
   return (await res.json()) as { trailUuid: string; name: string }
+}
+
+export async function apiCreateRun(
+  request: APIRequestContext,
+  token: string,
+  trailUuid: string,
+  userUuid: string,
+  { isCompleted = true } = {}
+) {
+  const now = Date.now()
+  const res = await request.post(`${API}/runs/upload`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      runUuid: randomUUID(),
+      trailUuid,
+      userUuid,
+      startTime: now - 3_600_000,
+      endTime: isCompleted ? now : undefined,
+      totalTime: isCompleted ? 3_600_000 : 0,
+      isCompleted,
+      isAbandoned: false,
+      sos: false,
+    },
+  })
+  return (await res.json()) as { ok: boolean; sessionUuid: string }
 }
 
 export async function loginViaUI(page: Page, creds = ADMIN) {

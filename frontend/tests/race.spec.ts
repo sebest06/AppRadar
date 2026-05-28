@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginViaUI, apiLogin, apiCreateTrail } from './helpers'
+import { loginViaUI, apiLogin, apiCreateTrail, apiCreateRun } from './helpers'
 
 test.describe('Crear carrera (UI)', () => {
   test.beforeEach(async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('Página de Resultados', () => {
   let trailName: string
 
   test.beforeAll(async ({ request }) => {
-    const token = await apiLogin(request)
+    const { token } = await apiLogin(request)
     const trail = await apiCreateTrail(request, token, `E2E Resultados ${Date.now()}`)
     trailUuid = trail.trailUuid
     trailName = trail.name
@@ -62,6 +62,24 @@ test.describe('Página de Resultados', () => {
     await expect(page.getByText(/sin resultados todavía/i)).toBeVisible()
   })
 
+  test('muestra el ranking cuando hay un corredor con la carrera completada', async ({ page, request }) => {
+    const { token, userUuid } = await apiLogin(request)
+    const trail = await apiCreateTrail(request, token, `E2E Ranking ${Date.now()}`)
+    await apiCreateRun(request, token, trail.trailUuid, userUuid, { isCompleted: true })
+
+    await page.goto(`/races/${trail.trailUuid}/results`)
+
+    // Table with at least one row
+    await expect(page.locator('table')).toBeVisible()
+    await expect(page.getByText('Admin User')).toBeVisible()
+
+    // No error message
+    await expect(page.getByText(/no se pudieron cargar/i)).not.toBeVisible()
+
+    // Completed badge
+    await expect(page.getByText('✓ Completó').first()).toBeVisible()
+  })
+
   test('el botón Replay lleva a la página de replay', async ({ page }) => {
     await page.goto(`/races/${trailUuid}/results`)
     await page.getByRole('link', { name: /replay/i }).click()
@@ -73,7 +91,7 @@ test.describe('Vista en vivo', () => {
   let trailUuid: string
 
   test.beforeAll(async ({ request }) => {
-    const token = await apiLogin(request)
+    const { token } = await apiLogin(request)
     const trail = await apiCreateTrail(request, token, `E2E Live ${Date.now()}`)
     trailUuid = trail.trailUuid
   })
@@ -107,7 +125,7 @@ test.describe('Editar carrera', () => {
   const originalName = `E2E Edit ${Date.now()}`
 
   test.beforeAll(async ({ request }) => {
-    const token = await apiLogin(request)
+    const { token } = await apiLogin(request)
     const trail = await apiCreateTrail(request, token, originalName)
     trailUuid = trail.trailUuid
   })
