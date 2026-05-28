@@ -1,0 +1,16 @@
+appId: com.appradar
+---
+
+# Subflow reutilizable: inicia sesión como admin
+# Variables requeridas: API_URL (ej. http://192.168.1.100:3000/)
+# Abrir configuración
+- tapOn:
+    id: "Configuración"
+- assertVisible: "Configuración"
+- assertVisible: "Selecciona tu icono"
+
+
+# Cerrar sesión
+- tapOn: "Cerrar Sesión"
+- assertVisible: "AppRadar Trail"
+- assertNotVisible: "Tus Carreras"

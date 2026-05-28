@@ -137,7 +137,7 @@ class RadarRepository @Inject constructor(
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
         return try {
             val response = apiService.getRankings(trailUuid, teamUuid, sessionUuid)
-            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+            if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
         } catch (e: Exception) {
             emptyList()
         }

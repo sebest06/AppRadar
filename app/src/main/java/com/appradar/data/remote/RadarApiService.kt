@@ -34,7 +34,7 @@ interface RadarApiService {
         @Query("trailUuid") trailUuid: String,
         @Query("teamUuid") teamUuid: String? = null,
         @Query("sessionUuid") sessionUuid: String? = null
-    ): Response<List<RankingEntry>>
+    ): Response<PaginatedResponse<RankingEntry>>
 
     @POST("gps/upload")
     suspend fun uploadGpsPosition(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<Unit>
@@ -89,4 +89,11 @@ data class RankingEntry(
     val isCompleted: Boolean,
     val isAbandoned: Boolean = false,
     val sos: Boolean = false
+)
+
+data class PaginatedResponse<T>(
+    val data: List<T>,
+    val total: Int,
+    val limit: Int,
+    val offset: Int
 )

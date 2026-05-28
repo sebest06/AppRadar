@@ -1,18 +1,32 @@
+appId: com.appradar
+---
 # Subflow reutilizable: inicia sesión como admin
 # Variables requeridas: API_URL (ej. http://192.168.1.100:3000/)
 
+- longPressOn: "Dirección REST API"
+- eraseText: 1
+
+- longPressOn: "Dirección REST API"
+- eraseText: 1
+
+- longPressOn: "Dirección REST API"
+- eraseText: 1
+
+- longPressOn: "Dirección REST API"
+- eraseText: 1
+
 - tapOn: "Dirección REST API"
-- clearText
+- eraseText: 100
 - inputText: "${API_URL}"
 - hideKeyboard
 
 - tapOn: "Usuario"
-- clearText
+- eraseText: 100
 - inputText: "admin"
 - hideKeyboard
 
 - tapOn: "Contraseña"
-- clearText
+- eraseText: 100
 - inputText: "1234"
 - hideKeyboard
 

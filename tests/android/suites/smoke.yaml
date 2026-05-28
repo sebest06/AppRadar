@@ -3,8 +3,8 @@ appId: com.appradar
 # Suite de smoke: ejecuta todos los flujos en secuencia
 # Uso: maestro test suites/smoke.yaml -e API_URL=http://192.168.x.x:3000/
 
-- runFlow: ../flows/01_login.yaml
-- runFlow: ../flows/02_login_fallido.yaml
+- runFlow: ../flows/01_login_fallido.yaml
+- runFlow: ../flows/02_login.yaml
 - runFlow: ../flows/03_home.yaml
 - runFlow: ../flows/04_settings.yaml
 - runFlow: ../flows/05_race_start_stop.yaml

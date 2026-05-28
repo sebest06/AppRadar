@@ -27,3 +27,6 @@ appId: com.appradar
 # FAB de crear carrera existe
 - assertVisible:
     id: "Crear Carrera"
+
+- runFlow: ../subflows/close.yaml
+

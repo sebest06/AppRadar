@@ -10,17 +10,17 @@ appId: com.appradar
 
 # Credenciales incorrectas
 - tapOn: "Dirección REST API"
-- clearText
+- eraseText: 100
 - inputText: "${API_URL}"
 - hideKeyboard
 
 - tapOn: "Usuario"
-- clearText
+- eraseText: 100
 - inputText: "admin"
 - hideKeyboard
 
 - tapOn: "Contraseña"
-- clearText
+- eraseText: 100
 - inputText: "clave_incorrecta"
 - hideKeyboard
 

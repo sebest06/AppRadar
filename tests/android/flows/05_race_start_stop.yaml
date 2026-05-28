@@ -9,9 +9,8 @@ appId: com.appradar
 # Sincronizamos para asegurar que hay carreras del servidor
 - tapOn:
     id: "Sincronizar"
-- wait:
-    forAnimationToEnd:
-      timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 5000
 
 # Verificamos que la lista tiene al menos una carrera
 - assertVisible: "Tus Carreras"
@@ -24,9 +23,8 @@ appId: com.appradar
 
 # La pantalla de carrera activa debe mostrar el nombre y el mapa
 - assertVisible: "Cargando..."
-- wait:
-    forAnimationToEnd:
-      timeout: 3000
+- waitForAnimationToEnd:
+    timeout: 3000
 
 # Botón para iniciar debe estar presente
 - assertVisible: "DAR INICIO A LA CARRERA"

@@ -8,7 +8,9 @@ appId: com.appradar
 
 # Verificamos que llegamos al home y vemos el saludo
 - assertVisible:
-    text: "¡Hola"
+    text: "¡Hola, Admin User!"
     optional: false
 - assertVisible: "Tus Carreras"
 - assertVisible: "AppRadar"
+
+- runFlow: ../subflows/close.yaml
