@@ -38,6 +38,9 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                it.jvmArgs("-Xmx2g")
+            }
         }
     }
 
