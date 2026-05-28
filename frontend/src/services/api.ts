@@ -69,6 +69,16 @@ export const authApi = {
     api.post<{ token: string; user: import('../types').User }>('/auth/register', data),
 }
 
+// Me / Profile
+export const meApi = {
+  get: () => api.get<import('../types').User>('/me'),
+  update: (data: { nombre?: string; activityType?: string }) => api.put<import('../types').User>('/me', data),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.put('/me/password', { currentPassword, newPassword }),
+  history: (options?: { limit?: number; offset?: number }) =>
+    api.get<import('../types').Paginated<import('../types').RunHistoryEntry>>('/me/history', { params: options }),
+}
+
 // Teams
 export const teamsApi = {
   list: () => api.get<{ uuid_team: string; team: string }[]>('/teams'),
@@ -95,7 +105,7 @@ export const trailsApi = {
   activate: (id: string) => api.post(`/trails/${id}/activate`),
 }
 
-export type Paginated<T> = { data: T[]; total: number; limit: number; offset: number }
+export type { Paginated } from '../types'
 
 // Rankings
 export const rankingsApi = {

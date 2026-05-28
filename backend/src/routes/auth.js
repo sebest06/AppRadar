@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { v4: uuidv4 } = require('uuid')
 const { z } = require('zod')
-const { JWT_SECRET } = require('../middleware/auth')
+const { JWT_SECRET, authMiddleware } = require('../middleware/auth')
 const { validate } = require('../middleware/validate')
 
 const REFRESH_SECRET = JWT_SECRET + '_refresh'
@@ -70,6 +70,53 @@ function createAuthRouter(db) {
     const { passw: _p, ...safeUser } = found
     const { token, refreshToken } = makeTokens({ uuid: found.uuid, user: found.user, role: found.role, uuid_team: found.uuid_team, teamStatus: found.teamStatus })
     res.json({ token, refreshToken, user: safeUser })
+  })
+
+  router.get('/me', authMiddleware, (req, res) => {
+    const found = db.prepare('SELECT uuid, user, nombre, team, uuid_team, role, activityType, teamStatus FROM users WHERE uuid = ?').get(req.user.uuid)
+    if (!found) return res.status(404).json({ error: 'Usuario no encontrado' })
+    res.json(found)
+  })
+
+  router.put('/me', authMiddleware, validate(z.object({
+    nombre: z.string().min(1).max(100).optional(),
+    activityType: z.enum(['runner', 'bike', 'car']).optional(),
+  })), (req, res) => {
+    const { nombre, activityType } = req.body
+    if (nombre) db.prepare('UPDATE users SET nombre = ? WHERE uuid = ?').run(nombre, req.user.uuid)
+    if (activityType) db.prepare('UPDATE users SET activityType = ? WHERE uuid = ?').run(activityType, req.user.uuid)
+    const updated = db.prepare('SELECT uuid, user, nombre, team, uuid_team, role, activityType, teamStatus FROM users WHERE uuid = ?').get(req.user.uuid)
+    res.json(updated)
+  })
+
+  router.put('/me/password', authMiddleware, validate(z.object({
+    currentPassword: z.string().min(1, 'Contraseña actual requerida'),
+    newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres'),
+  })), (req, res) => {
+    const { currentPassword, newPassword } = req.body
+    const found = db.prepare('SELECT passw FROM users WHERE uuid = ?').get(req.user.uuid)
+    if (!found || !bcrypt.compareSync(currentPassword, found.passw)) {
+      return res.status(401).json({ error: 'Contraseña actual incorrecta' })
+    }
+    db.prepare('UPDATE users SET passw = ? WHERE uuid = ?').run(bcrypt.hashSync(newPassword, 10), req.user.uuid)
+    res.json({ ok: true })
+  })
+
+  router.get('/me/history', authMiddleware, (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100)
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0)
+    const { total } = db.prepare('SELECT COUNT(*) as total FROM race_runs WHERE userUuid = ?').get(req.user.uuid)
+    const runs = db.prepare(`
+      SELECT rr.runUuid, rr.trailUuid, rr.startTime, rr.endTime, rr.totalTime,
+             rr.isCompleted, rr.isAbandoned, rr.sos, rr.sessionUuid,
+             t.name as trailName, t.distanceKm, t.elevationM,
+             (SELECT COUNT(DISTINCT waypointUuid) FROM tracks WHERE runUuid = rr.runUuid) as waypointsReached,
+             (SELECT COUNT(*) FROM waypoints WHERE trailUuid = rr.trailUuid) as totalWaypoints
+      FROM race_runs rr JOIN trails t ON t.trailUuid = rr.trailUuid
+      WHERE rr.userUuid = ?
+      ORDER BY rr.startTime DESC LIMIT ? OFFSET ?
+    `).all(req.user.uuid, limit, offset)
+    res.json({ data: runs, total, limit, offset })
   })
 
   router.post('/auth/refresh', (req, res) => {

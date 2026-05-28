@@ -87,3 +87,21 @@ export interface AuthResponse {
   token: string
   user: User
 }
+
+export interface RunHistoryEntry {
+  runUuid: string
+  trailUuid: string
+  trailName: string
+  distanceKm: number
+  elevationM: number
+  startTime: number | null
+  endTime: number | null
+  totalTime: number
+  isCompleted: number
+  isAbandoned: number
+  sos: number
+  waypointsReached: number
+  totalWaypoints: number
+}
+
+export type Paginated<T> = { data: T[]; total: number; limit: number; offset: number }

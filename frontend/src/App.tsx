@@ -9,6 +9,7 @@ import CreateRace from './pages/CreateRace'
 import LiveRace from './pages/LiveRace'
 import Results from './pages/Results'
 import RaceNotifications from './pages/RaceNotifications'
+import Profile from './pages/Profile'
 
 const queryClient = new QueryClient()
 
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/races/:id/live" element={<LiveRace />} />
             <Route path="/races/:id/results" element={<Results />} />
             <Route path="/races/:id/notifications" element={<RaceNotifications />} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

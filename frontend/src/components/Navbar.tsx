@@ -78,10 +78,10 @@ export default function Navbar() {
             <div className="hidden sm:flex items-center gap-3">
               {user ? (
                 <>
-                  <div className="flex items-center gap-2 text-green-100 text-sm">
+                  <Link to="/profile" className="flex items-center gap-2 text-green-100 hover:text-white text-sm transition-colors">
                     <Avatar name={user.nombre} />
                     <span className="hidden md:block">{user.nombre}</span>
-                  </div>
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="text-sm text-green-200 hover:text-white border border-white/20 hover:border-white/40 px-3 py-1.5 rounded-lg transition-colors"
@@ -136,6 +136,7 @@ export default function Navbar() {
                   </div>
                 </div>
                 <NavLink to="/" onClick={close}>Carreras</NavLink>
+                <NavLink to="/profile" onClick={close}>Mi perfil</NavLink>
                 {user.role === 'organizer' && (
                   <NavLink to="/races/new" onClick={close}>+ Nueva carrera</NavLink>
                 )}
