@@ -100,6 +100,17 @@ function createTrailsRouter(db) {
     res.json({ ok: true })
   })
 
+  // Categories
+  router.get('/categories', (req, res) => {
+    const categories = db.prepare(`
+      SELECT c.categoryUuid, c.name, c.description, COUNT(uc.userUuid) as memberCount
+      FROM categories c
+      LEFT JOIN users_categories uc ON uc.categoryUuid = c.categoryUuid
+      GROUP BY c.categoryUuid ORDER BY c.name ASC
+    `).all()
+    res.json(categories)
+  })
+
   return router
 }
 

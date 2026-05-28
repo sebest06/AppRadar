@@ -83,6 +83,13 @@ export interface RaceEvent {
   startTime: number | null
 }
 
+export interface Category {
+  categoryUuid: string
+  name: string
+  description: string | null
+  memberCount: number
+}
+
 export interface AuthResponse {
   token: string
   user: User

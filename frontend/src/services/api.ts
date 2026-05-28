@@ -69,6 +69,11 @@ export const authApi = {
     api.post<{ token: string; user: import('../types').User }>('/auth/register', data),
 }
 
+// Categories
+export const categoriesApi = {
+  list: () => api.get<import('../types').Category[]>('/categories'),
+}
+
 // Me / Profile
 export const meApi = {
   get: () => api.get<import('../types').User>('/me'),
@@ -109,7 +114,7 @@ export type { Paginated } from '../types'
 
 // Rankings
 export const rankingsApi = {
-  get: (trailUuid: string, options?: { teamUuid?: string; sessionUuid?: string; limit?: number; offset?: number }) =>
+  get: (trailUuid: string, options?: { teamUuid?: string; sessionUuid?: string; categoryUuid?: string; limit?: number; offset?: number }) =>
     api.get<Paginated<import('../types').RankingEntry>>('/rankings', {
       params: { trailUuid, ...options },
     }),

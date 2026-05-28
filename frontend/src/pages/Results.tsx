@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 
-import { rankingsApi, racesApi, trailsApi } from '../services/api'
+import { rankingsApi, racesApi, trailsApi, categoriesApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
-import type { RankingEntry, RaceSession, TrailWithWaypoints, Waypoint } from '../types'
+import type { Category, RankingEntry, RaceSession, TrailWithWaypoints, Waypoint } from '../types'
 
 function formatTime(ms: number) {
   if (!ms) return '--:--:--'
@@ -440,6 +440,8 @@ export default function Results() {
   const [sessionsTotal, setSessionsTotal] = useState(0)
   const [sessionsOffset, setSessionsOffset] = useState(0)
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -450,13 +452,17 @@ export default function Results() {
   useEffect(() => {
     if (!id) return
     setError(null)
-    Promise.all([trailsApi.details(id), racesApi.sessions(id, { limit: SESSIONS_LIMIT, offset: 0 })])
-      .then(([t, s]) => {
+    Promise.all([
+      trailsApi.details(id),
+      racesApi.sessions(id, { limit: SESSIONS_LIMIT, offset: 0 }),
+      categoriesApi.list(),
+    ]).then(([t, s, c]) => {
         setTrail(t.data)
         setSessions(s.data.data)
         setSessionsTotal(s.data.total)
         setSessionsOffset(0)
         if (s.data.data.length > 0) setSelectedSession(s.data.data[0].sessionUuid)
+        setCategories(c.data)
       })
       .catch(() => setError('No se pudo cargar la carrera. Verificá tu conexión e intentá de nuevo.'))
   }, [id])
@@ -466,11 +472,16 @@ export default function Results() {
     setLoading(true)
     setRankingsError(null)
     setRankingsOffset(0)
-    rankingsApi.get(id, { sessionUuid: selectedSession ?? undefined, limit: RANKINGS_LIMIT, offset: 0 })
+    rankingsApi.get(id, {
+      sessionUuid: selectedSession ?? undefined,
+      categoryUuid: selectedCategory || undefined,
+      limit: RANKINGS_LIMIT,
+      offset: 0,
+    })
       .then(r => { setRankings(r.data.data); setRankingsTotal(r.data.total) })
       .catch(() => setRankingsError('No se pudieron cargar los resultados.'))
       .finally(() => setLoading(false))
-  }, [id, selectedSession])
+  }, [id, selectedSession, selectedCategory])
 
   function loadMoreSessions() {
     if (!id) return
@@ -488,7 +499,7 @@ export default function Results() {
     if (!id) return
     const nextOffset = rankingsOffset + RANKINGS_LIMIT
     setLoadingMore(true)
-    rankingsApi.get(id, { sessionUuid: selectedSession ?? undefined, limit: RANKINGS_LIMIT, offset: nextOffset })
+    rankingsApi.get(id, { sessionUuid: selectedSession ?? undefined, categoryUuid: selectedCategory || undefined, limit: RANKINGS_LIMIT, offset: nextOffset })
       .then(r => { setRankings(prev => [...prev, ...r.data.data]); setRankingsOffset(nextOffset) })
       .finally(() => setLoadingMore(false))
   }
@@ -592,6 +603,33 @@ export default function Results() {
                 ? <span className="block w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
                 : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               }
+            </button>
+          )}
+        </div>
+      )}
+
+      {categories.length > 0 && (
+        <div className="card p-3 mb-4 flex items-center gap-3">
+          <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide whitespace-nowrap">Categoría:</span>
+          <select
+            value={selectedCategory}
+            onChange={e => setSelectedCategory(e.target.value)}
+            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">Todas las categorías</option>
+            {categories.map(c => (
+              <option key={c.categoryUuid} value={c.categoryUuid}>
+                {c.name}{c.memberCount > 0 ? ` (${c.memberCount})` : ''}
+              </option>
+            ))}
+          </select>
+          {selectedCategory && (
+            <button
+              onClick={() => setSelectedCategory('')}
+              title="Limpiar filtro"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           )}
         </div>
