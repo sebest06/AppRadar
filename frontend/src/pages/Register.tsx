@@ -39,7 +39,7 @@ export default function Register() {
         uuid_team: form.role === 'runner' ? form.uuid_team : undefined,
         role: form.role 
       })
-      login(data.user, data.token)
+      login(data.user, data.token, data.refreshToken)
       navigate('/')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error

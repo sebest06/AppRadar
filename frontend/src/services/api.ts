@@ -13,15 +13,51 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+let isRefreshing = false
+let refreshQueue: ((token: string) => void)[] = []
+
 api.interceptors.response.use(
   (r) => r,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const original = error.config
+    if (error.response?.status !== 401 || original._retry || original.url?.includes('/auth/')) {
+      return Promise.reject(error)
+    }
+    const storedRefresh = localStorage.getItem('refreshToken')
+    if (!storedRefresh) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'
+      return Promise.reject(error)
     }
-    return Promise.reject(error)
+    if (isRefreshing) {
+      return new Promise((resolve) => {
+        refreshQueue.push((token) => {
+          original.headers.Authorization = `Bearer ${token}`
+          resolve(api(original))
+        })
+      })
+    }
+    original._retry = true
+    isRefreshing = true
+    try {
+      const { data } = await api.post('/auth/refresh', { refreshToken: storedRefresh })
+      const { useAuthStore } = await import('../store/authStore')
+      useAuthStore.getState().updateToken(data.token, data.refreshToken)
+      api.defaults.headers.common.Authorization = `Bearer ${data.token}`
+      refreshQueue.forEach((cb) => cb(data.token))
+      refreshQueue = []
+      original.headers.Authorization = `Bearer ${data.token}`
+      return api(original)
+    } catch {
+      localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+      return Promise.reject(error)
+    } finally {
+      isRefreshing = false
+    }
   }
 )
 

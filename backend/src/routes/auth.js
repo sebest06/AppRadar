@@ -6,6 +6,14 @@ const { z } = require('zod')
 const { JWT_SECRET } = require('../middleware/auth')
 const { validate } = require('../middleware/validate')
 
+const REFRESH_SECRET = JWT_SECRET + '_refresh'
+
+function makeTokens(payload) {
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' })
+  const refreshToken = jwt.sign({ uuid: payload.uuid, type: 'refresh' }, REFRESH_SECRET, { expiresIn: '30d' })
+  return { token, refreshToken }
+}
+
 const registerSchema = z.object({
   user: z.string().min(3, 'El usuario debe tener al menos 3 caracteres').max(50),
   passw: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
@@ -49,8 +57,8 @@ function createAuthRouter(db) {
     `).run(uuid, user, hash, nombre, finalTeamName, finalTeamUuid, userRole, finalActivityType, teamStatus)
 
     const newUser = { uuid, user, nombre, team: finalTeamName, uuid_team: finalTeamUuid, role: userRole, activityType: finalActivityType, teamStatus }
-    const token = jwt.sign({ uuid, user, role: userRole, uuid_team: finalTeamUuid, teamStatus }, JWT_SECRET, { expiresIn: '7d' })
-    res.status(201).json({ token, user: newUser })
+    const { token, refreshToken } = makeTokens({ uuid, user, role: userRole, uuid_team: finalTeamUuid, teamStatus })
+    res.status(201).json({ token, refreshToken, user: newUser })
   })
 
   router.post('/login', validate(loginSchema), (req, res) => {
@@ -60,12 +68,25 @@ function createAuthRouter(db) {
       return res.status(401).json({ error: 'Credenciales incorrectas' })
     }
     const { passw: _p, ...safeUser } = found
-    const token = jwt.sign(
-      { uuid: found.uuid, user: found.user, role: found.role, uuid_team: found.uuid_team, teamStatus: found.teamStatus },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    )
-    res.json({ token, user: safeUser })
+    const { token, refreshToken } = makeTokens({ uuid: found.uuid, user: found.user, role: found.role, uuid_team: found.uuid_team, teamStatus: found.teamStatus })
+    res.json({ token, refreshToken, user: safeUser })
+  })
+
+  router.post('/auth/refresh', (req, res) => {
+    const { refreshToken } = req.body
+    if (!refreshToken) return res.status(400).json({ error: 'refreshToken requerido' })
+    try {
+      const payload = jwt.verify(refreshToken, REFRESH_SECRET)
+      if (payload.type !== 'refresh') return res.status(401).json({ error: 'Token inválido' })
+      const found = db.prepare('SELECT * FROM users WHERE uuid = ?').get(payload.uuid)
+      if (!found) return res.status(401).json({ error: 'Usuario no encontrado' })
+      const { token, refreshToken: newRefreshToken } = makeTokens({
+        uuid: found.uuid, user: found.user, role: found.role, uuid_team: found.uuid_team, teamStatus: found.teamStatus
+      })
+      res.json({ token, refreshToken: newRefreshToken })
+    } catch {
+      res.status(401).json({ error: 'Token inválido o expirado' })
+    }
   })
 
   return router

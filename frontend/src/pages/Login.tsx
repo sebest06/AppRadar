@@ -16,7 +16,7 @@ export default function Login() {
     setLoading(true)
     try {
       const { data } = await authApi.login(form.user, form.passw)
-      login(data.user, data.token)
+      login(data.user, data.token, data.refreshToken)
       navigate('/')
     } catch {
       setError('Usuario o contraseña incorrectos')
