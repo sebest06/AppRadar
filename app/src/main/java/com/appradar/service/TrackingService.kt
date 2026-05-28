@@ -18,6 +18,7 @@ import com.appradar.data.local.entity.WaypointEntity
 import com.appradar.data.remote.RankingEntry
 import com.appradar.data.repository.RadarRepository
 import com.appradar.util.LocationHelper
+import com.appradar.util.formatGapLine
 import com.google.android.gms.location.*
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -337,28 +338,9 @@ class TrackingService : Service() {
      * ventaja; si no, el usuario lleva ese déficit.
      */
     private fun gapLine(
-        arrow: String,
-        name: String,
-        rankNo: Int,
-        refWps: Int,
-        cmpWps: Int,
-        refTime: Long,
-        cmpTime: Long,
-        userIsFaster: Boolean
-    ): String {
-        val wpDiff = Math.abs(refWps - cmpWps)
-        return if (wpDiff == 0 && refTime > 0 && cmpTime > 0) {
-            val gapSec = Math.abs(refTime - cmpTime) / 1000
-            val mins   = gapSec / 60
-            val secs   = gapSec % 60
-            val gapStr = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
-            if (userIsFaster) "$arrow ${gapStr} sobre $name (#$rankNo)"
-            else              "$arrow ${gapStr} detrás de $name (#$rankNo)"
-        } else {
-            if (userIsFaster) "$arrow $wpDiff WP adelante de $name (#$rankNo)"
-            else              "$arrow $wpDiff WP detrás de $name (#$rankNo)"
-        }
-    }
+        arrow: String, name: String, rankNo: Int,
+        refWps: Int, cmpWps: Int, refTime: Long, cmpTime: Long, userIsFaster: Boolean
+    ): String = formatGapLine(arrow, name, rankNo, refWps, cmpWps, refTime, cmpTime, userIsFaster)
 
     // ── Notifications ─────────────────────────────────────────────────────────
 
