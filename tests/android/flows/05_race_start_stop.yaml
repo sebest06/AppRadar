@@ -1,0 +1,57 @@
+appId: com.appradar
+---
+# Test: Iniciar y detener una carrera
+# Prerequisito: debe existir al menos una carrera sincronizada desde el backend.
+# Si la lista está vacía el test falla indicando que falta setup de datos.
+- launchApp
+- runFlow: ../subflows/login.yaml
+
+# Sincronizamos para asegurar que hay carreras del servidor
+- tapOn:
+    id: "Sincronizar"
+- wait:
+    forAnimationToEnd:
+      timeout: 5000
+
+# Verificamos que la lista tiene al menos una carrera
+- assertVisible: "Tus Carreras"
+- assertNotVisible: "No hay carreras guardadas. ¡Crea una!"
+
+# Abrimos la primera carrera disponible
+- tapOn:
+    index: 0
+    text: "Tus Carreras"
+
+# La pantalla de carrera activa debe mostrar el nombre y el mapa
+- assertVisible: "Cargando..."
+- wait:
+    forAnimationToEnd:
+      timeout: 3000
+
+# Botón para iniciar debe estar presente
+- assertVisible: "DAR INICIO A LA CARRERA"
+
+# Iniciamos la carrera
+- tapOn: "DAR INICIO A LA CARRERA"
+
+# Controles de carrera en curso
+- assertVisible: "PAUSAR"
+- assertVisible: "PEDIR S.O.S (EMERGENCIA)"
+- assertVisible: "TERMINAR CARRERA"
+
+# Pausar y reanudar
+- tapOn: "PAUSAR"
+- assertVisible: "REANUDAR"
+- tapOn: "REANUDAR"
+- assertVisible: "PAUSAR"
+
+# Ver ranking
+- tapOn: "Ranking"
+- assertVisible: "Ranking"
+- back
+
+# Terminar carrera
+- tapOn: "TERMINAR CARRERA"
+
+# Volvemos al home
+- assertVisible: "Tus Carreras"

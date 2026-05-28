@@ -1,0 +1,29 @@
+appId: com.appradar
+---
+# Test: Pantalla home — sincronización y navegación básica
+- launchApp
+- runFlow: ../subflows/login.yaml
+
+# Verificamos elementos del home
+- assertVisible: "AppRadar"
+- assertVisible: "Tus Carreras"
+
+# Botón de sincronizar está presente (ícono Refresh)
+- assertVisible:
+    id: "Sincronizar"
+
+# Navegar a Historial
+- tapOn:
+    id: "Historial"
+- assertVisible: "Historial de Carreras"
+- back
+
+# Navegar a Configuración
+- tapOn:
+    id: "Configuración"
+- assertVisible: "Configuración"
+- back
+
+# FAB de crear carrera existe
+- assertVisible:
+    id: "Crear Carrera"

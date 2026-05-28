@@ -1,0 +1,31 @@
+appId: com.appradar
+---
+# Test: Login con credenciales incorrectas muestra error
+- launchApp
+- assertVisible: "AppRadar Trail"
+
+# Campos vacíos → error de validación
+- tapOn: "Iniciar Sesión"
+- assertVisible: "Complete todos los campos"
+
+# Credenciales incorrectas
+- tapOn: "Dirección REST API"
+- clearText
+- inputText: "${API_URL}"
+- hideKeyboard
+
+- tapOn: "Usuario"
+- clearText
+- inputText: "admin"
+- hideKeyboard
+
+- tapOn: "Contraseña"
+- clearText
+- inputText: "clave_incorrecta"
+- hideKeyboard
+
+- tapOn: "Iniciar Sesión"
+- assertVisible: "Credenciales incorrectas"
+
+# Verificamos que NO navegamos al home
+- assertNotVisible: "Tus Carreras"

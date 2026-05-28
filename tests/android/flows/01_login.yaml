@@ -1,0 +1,14 @@
+appId: com.appradar
+---
+# Test: Login exitoso con credenciales correctas
+- launchApp
+- assertVisible: "AppRadar Trail"
+
+- runFlow: ../subflows/login.yaml
+
+# Verificamos que llegamos al home y vemos el saludo
+- assertVisible:
+    text: "¡Hola"
+    optional: false
+- assertVisible: "Tus Carreras"
+- assertVisible: "AppRadar"

@@ -1,0 +1,20 @@
+# Subflow reutilizable: inicia sesión como admin
+# Variables requeridas: API_URL (ej. http://192.168.1.100:3000/)
+
+- tapOn: "Dirección REST API"
+- clearText
+- inputText: "${API_URL}"
+- hideKeyboard
+
+- tapOn: "Usuario"
+- clearText
+- inputText: "admin"
+- hideKeyboard
+
+- tapOn: "Contraseña"
+- clearText
+- inputText: "1234"
+- hideKeyboard
+
+- tapOn: "Iniciar Sesión"
+- assertVisible: "Tus Carreras"

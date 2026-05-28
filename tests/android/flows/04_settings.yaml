@@ -1,0 +1,31 @@
+appId: com.appradar
+---
+# Test: Pantalla de configuración — ícono y logout
+- launchApp
+- runFlow: ../subflows/login.yaml
+
+# Abrir configuración
+- tapOn:
+    id: "Configuración"
+- assertVisible: "Configuración"
+- assertVisible: "Selecciona tu icono"
+
+# Los tres íconos deben estar disponibles
+- assertVisible:
+    id: "runner"
+- assertVisible:
+    id: "bike"
+- assertVisible:
+    id: "car"
+
+# Seleccionar ícono de bicicleta
+- tapOn:
+    id: "bike"
+
+# Botón de WearOS
+- assertVisible: "Sincronizar con Reloj"
+
+# Cerrar sesión
+- tapOn: "Cerrar Sesión"
+- assertVisible: "AppRadar Trail"
+- assertNotVisible: "Tus Carreras"
