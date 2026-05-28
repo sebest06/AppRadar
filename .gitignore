@@ -1,44 +1,43 @@
-# Archivos temporales e IDEs
+# ── IDE / Editores ────────────────────────────────────────────────────────────
+.idea/
 *.iml
-.gradle
-/.idea/
-/.idea/workspace.xml
-/.idea/tasks.xml
-/.idea/gradle.xml
-/.idea/assetWizardSettings.xml
-/.idea/dictionaries
-/.idea/libraries
-/.idea/caches
+.vscode/
+*.swp
+*.swo
 
-# Archivos de build (Android y Gradle)
+# ── Gradle / Android build ────────────────────────────────────────────────────
+.gradle/
 build/
-/app/build/
+app/build/
+wear/build/
 .cxx/
 /captures/
 .externalNativeBuild/
-.cxx/
 
-# Configuraciones locales (NUNCA DEBEN SUBIRSE AL REPO)
+# ── Android local config ──────────────────────────────────────────────────────
 local.properties
 
-# Archivos de Sistema Operativo
+# ── Sistema Operativo ─────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Keystore (Si alguna vez creas uno para release, asegurate de que no se suba)
+# ── Keystores (nunca al repo) ─────────────────────────────────────────────────
 *.jks
 *.keystore
 
-# Backend
+# ── Backend ───────────────────────────────────────────────────────────────────
 backend/.env
 backend/data/*.db
 backend/data/*.db-shm
 backend/data/*.db-wal
 backend/data/backup/
+backend/node_modules/
 
-# Frontend build
+# ── Frontend ──────────────────────────────────────────────────────────────────
 frontend/dist/
 frontend/node_modules/
+frontend/playwright-report/
+frontend/test-results/
 
-# Node
+# ── Node (raíz) ───────────────────────────────────────────────────────────────
 node_modules/
