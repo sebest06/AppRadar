@@ -20,14 +20,14 @@ test.describe('Dashboard', () => {
     await page.reload()
 
     // Filter bar should now be visible
-    const filterBar = page.getByRole('button', { name: /todas/i })
+    const filterBar = page.getByRole('button', { name: 'Todas', exact: true })
     await expect(filterBar).toBeVisible()
 
     await page.getByRole('button', { name: /en vivo/i }).click()
     // Trail is inactive → should NOT appear
     await expect(page.getByText(trail.name)).not.toBeVisible()
 
-    await page.getByRole('button', { name: /todas/i }).click()
+    await page.getByRole('button', { name: 'Todas', exact: true }).click()
     await expect(page.getByText(trail.name)).toBeVisible()
 
     await page.getByRole('button', { name: /mis carreras/i }).click()
