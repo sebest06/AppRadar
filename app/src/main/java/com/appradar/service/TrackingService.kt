@@ -51,6 +51,14 @@ class TrackingService : Service() {
     private var lastGpsUploadMs = 0L
     private var dataJob: kotlinx.coroutines.Job? = null
 
+    private data class TeammateSnapshot(
+        val waypointsReached: Int,
+        val isCompleted: Boolean,
+        val isAbandoned: Boolean,
+        val sos: Boolean
+    )
+    private val previousTeammateState = mutableMapOf<String, TeammateSnapshot>()
+
     companion object {
         const val EXTRA_TRAIL_UUID = "trailUuid"
         const val EXTRA_TEAM_UUID = "teamUuid"
@@ -61,8 +69,10 @@ class TrackingService : Service() {
 
         private const val TRACKING_CHANNEL_ID = "TrackingChannel"
         private const val RANKING_CHANNEL_ID = "RankingChannel"
+        private const val TEAMMATE_CHANNEL_ID = "TeammateChannel"
         private const val TRACKING_NOTIFICATION_ID = 1
         private const val RANKING_NOTIFICATION_ID = 2
+        private const val TEAMMATE_NOTIFICATION_BASE = 1000
         private const val RANKING_POLL_MS = 30_000L
 
         var isServiceRunning = false
@@ -192,14 +202,68 @@ class TrackingService : Service() {
             val run = repository.getRaceRunById(runUuid)
             val sessionUuid = run?.sessionUuid
             val rankings = repository.getRankings(trailUuid, teamUuid.ifEmpty { null }, sessionUuid)
-            if (rankings.size < 2) return
 
+            val oldState = previousTeammateState.toMap()
+            for (entry in rankings) {
+                if (entry.userUuid == userUuid) continue
+                previousTeammateState[entry.userUuid] = TeammateSnapshot(
+                    waypointsReached = entry.waypointsReached,
+                    isCompleted = entry.isCompleted,
+                    isAbandoned = entry.isAbandoned,
+                    sos = entry.sos
+                )
+            }
+            if (oldState.isNotEmpty()) checkTeammateEvents(oldState, rankings)
+
+            if (rankings.size < 2) return
             val userIndex = rankings.indexOfFirst { it.userUuid == userUuid }
             if (userIndex < 0) return
 
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.notify(RANKING_NOTIFICATION_ID, buildRankingNotification(rankings, userIndex))
         } catch (_: Exception) {}
+    }
+
+    private fun checkTeammateEvents(old: Map<String, TeammateSnapshot>, rankings: List<RankingEntry>) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        for (entry in rankings) {
+            if (entry.userUuid == userUuid) continue
+            val prev = old[entry.userUuid] ?: continue
+            val position = rankings.indexOfFirst { it.userUuid == entry.userUuid } + 1
+            val notifId = TEAMMATE_NOTIFICATION_BASE + Math.abs(entry.userUuid.hashCode()) % 9000
+            val message = when {
+                !prev.sos && entry.sos ->
+                    "🆘 EMERGENCIA: ${entry.userName} activó el S.O.S"
+                !prev.isCompleted && entry.isCompleted ->
+                    "🏆 ${entry.userName} finalizó la carrera! · #$position"
+                !prev.isAbandoned && entry.isAbandoned ->
+                    "🛑 ${entry.userName} abandonó la carrera"
+                entry.waypointsReached > prev.waypointsReached -> {
+                    val wpIndex = entry.waypointsReached - 1
+                    val wpName = waypoints.getOrNull(wpIndex)?.name?.takeIf { it.isNotBlank() }
+                        ?: "WP ${entry.waypointsReached}"
+                    "📍 ${entry.userName} pasó $wpName · #$position en ranking"
+                }
+                else -> null
+            }
+            message?.let { nm.notify(notifId, buildTeammateNotification(it, entry.sos || entry.isCompleted)) }
+        }
+    }
+
+    private fun buildTeammateNotification(message: String, highPriority: Boolean): Notification {
+        val openIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return NotificationCompat.Builder(this, TEAMMATE_CHANNEL_ID)
+            .setContentTitle("Equipo")
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(if (highPriority) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(openIntent)
+            .build()
     }
 
     private fun buildRankingNotification(rankings: List<RankingEntry>, userIndex: Int): Notification {
@@ -314,6 +378,11 @@ class TrackingService : Service() {
             )
             nm.createNotificationChannel(
                 NotificationChannel(RANKING_CHANNEL_ID, "Ranking en Vivo", NotificationManager.IMPORTANCE_DEFAULT)
+            )
+            nm.createNotificationChannel(
+                NotificationChannel(TEAMMATE_CHANNEL_ID, "Progreso del equipo", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Avisos cuando un compañero pasa un waypoint, finaliza o activa SOS"
+                }
             )
         }
     }

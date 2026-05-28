@@ -86,5 +86,7 @@ data class RankingEntry(
     val totalWaypoints: Int,
     val lastWaypointTime: Long,
     val totalTime: Long,
-    val isCompleted: Boolean
+    val isCompleted: Boolean,
+    val isAbandoned: Boolean = false,
+    val sos: Boolean = false
 )
