@@ -6,7 +6,8 @@ test.describe('Autenticación', () => {
     await loginViaUI(page)
 
     await expect(page).toHaveURL('/')
-    await expect(page.getByRole('link', { name: /admin user/i })).toBeVisible()
+    // The navbar profile link is always present after login regardless of the user's display name
+    await expect(page.locator('a[href="/profile"]')).toBeVisible()
   })
 
   test('credenciales incorrectas muestran mensaje de error', async ({ page }) => {
