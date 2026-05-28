@@ -1,19 +1,18 @@
 package com.appradar.ui.viewmodel
 
+import android.content.Context
 import android.location.Location
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import androidx.test.core.app.ApplicationProvider
 import com.appradar.data.local.entity.TrailEntity
 import com.appradar.data.local.entity.WaypointEntity
 import com.appradar.data.repository.RadarRepository
+import com.appradar.util.LocationHelper
 import com.appradar.util.UserPreferences
-import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
+import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -23,19 +22,20 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
+import org.junit.runners.JUnit4
 
+// Sin Robolectric: Context y Location se mockean con MockK.
+// Esto evita cargar el SDK de Android entero y elimina el OOM.
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@RunWith(JUnit4::class)
 class ActiveTrailViewModelTest {
 
     @get:Rule
     val instantTaskRule = InstantTaskExecutorRule()
 
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
 
+    private val mockContext: Context = mockk(relaxed = true)
     private val mockRepository: RadarRepository = mockk(relaxed = true)
     private val mockPrefs: UserPreferences = mockk(relaxed = true)
 
@@ -57,16 +57,14 @@ class ActiveTrailViewModelTest {
         coEvery { mockRepository.getLastRunForTrail(any()) } returns null
         coEvery { mockRepository.getLivePositions(any(), any()) } returns emptyList()
 
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        viewModel = ActiveTrailViewModel(context, mockRepository, mockPrefs)
+        viewModel = ActiveTrailViewModel(mockContext, mockRepository, mockPrefs)
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkObject(LocationHelper)
     }
-
-    // ── Estado inicial ────────────────────────────────────────────────────────
 
     @Test
     fun `isRaceStarted es false al iniciar`() {
@@ -89,16 +87,14 @@ class ActiveTrailViewModelTest {
     }
 
     @Test
-    fun `reachedWaypoints está vacío al iniciar`() {
+    fun `reachedWaypoints esta vacio al iniciar`() {
         assertTrue(viewModel.reachedWaypoints.value.isEmpty())
     }
 
     @Test
-    fun `teammatePositions está vacío al iniciar`() {
+    fun `teammatePositions esta vacio al iniciar`() {
         assertTrue(viewModel.teammatePositions.value.isEmpty())
     }
-
-    // ── togglePause sin carrera activa no cambia el estado ───────────────────
 
     @Test
     fun `togglePause sin carrera iniciada no activa pausa`() {
@@ -106,33 +102,26 @@ class ActiveTrailViewModelTest {
         assertFalse(viewModel.isPaused.value)
     }
 
-    // ── loadTrail setea el trail ──────────────────────────────────────────────
-
     @Test
     fun `loadTrail con repositorio mockeado carga el trail`() = runTest {
         val trail = TrailEntity(trailUuid = "trail-1", name = "Sendero del Norte", maxSkip = 1)
         coEvery { mockRepository.getTrailById("trail-1") } returns trail
 
         viewModel.loadTrail("trail-1")
-        testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("trail-1", viewModel.trail.value?.trailUuid)
         assertEquals("Sendero del Norte", viewModel.trail.value?.name)
     }
 
-    // ── onLocationUpdate detecta waypoints ───────────────────────────────────
-
     @Test
-    fun `onLocationUpdate ignora actualización si la carrera no está iniciada`() {
-        val location = Location("gps").apply {
-            latitude = -34.6037; longitude = -58.3816; accuracy = 5f
-        }
-        viewModel.onLocationUpdate(location)
+    fun `onLocationUpdate ignora actualizacion si la carrera no esta iniciada`() {
+        val mockLocation = mockk<Location>(relaxed = true)
+        viewModel.onLocationUpdate(mockLocation)
         assertTrue(viewModel.reachedWaypoints.value.isEmpty())
     }
 
     @Test
-    fun `onLocationUpdate detecta waypoint dentro del radio al correr`() = runTest {
+    fun `onLocationUpdate detecta waypoint cuando LocationHelper retorna true`() = runTest {
         val trailUuid = "trail-wp"
         val waypoint = WaypointEntity(
             waypointUuid = "wp-start",
@@ -143,24 +132,40 @@ class ActiveTrailViewModelTest {
             longitude = -58.3816,
             radiusInMeters = 100f
         )
-
         val trail = TrailEntity(trailUuid = trailUuid, name = "Trail WP", maxSkip = 0)
         coEvery { mockRepository.getTrailById(trailUuid) } returns trail
         every { mockRepository.getWaypointsForTrail(trailUuid) } returns flowOf(listOf(waypoint))
 
         viewModel.loadTrail(trailUuid)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        // Iniciamos la carrera
         viewModel.startRace()
-        testDispatcher.scheduler.advanceUntilIdle()
 
-        // Ubicación exactamente en el waypoint
-        val location = Location("gps").apply {
-            latitude = -34.6037; longitude = -58.3816; accuracy = 5f
-        }
-        viewModel.onLocationUpdate(location)
+        mockkObject(LocationHelper)
+        every { LocationHelper.isWithinWaypointRadius(any(), any(), any(), any()) } returns true
+
+        viewModel.onLocationUpdate(mockk(relaxed = true))
 
         assertEquals(setOf("wp-start"), viewModel.reachedWaypoints.value)
+    }
+
+    @Test
+    fun `onLocationUpdate no registra waypoint cuando LocationHelper retorna false`() = runTest {
+        val trailUuid = "trail-wp2"
+        val waypoint = WaypointEntity(
+            waypointUuid = "wp-far", trailUuid = trailUuid, order = 0,
+            name = "Lejano", latitude = -34.6037, longitude = -58.3816, radiusInMeters = 50f
+        )
+        val trail = TrailEntity(trailUuid = trailUuid, name = "Trail Lejano", maxSkip = 0)
+        coEvery { mockRepository.getTrailById(trailUuid) } returns trail
+        every { mockRepository.getWaypointsForTrail(trailUuid) } returns flowOf(listOf(waypoint))
+
+        viewModel.loadTrail(trailUuid)
+        viewModel.startRace()
+
+        mockkObject(LocationHelper)
+        every { LocationHelper.isWithinWaypointRadius(any(), any(), any(), any()) } returns false
+
+        viewModel.onLocationUpdate(mockk(relaxed = true))
+
+        assertTrue(viewModel.reachedWaypoints.value.isEmpty())
     }
 }
