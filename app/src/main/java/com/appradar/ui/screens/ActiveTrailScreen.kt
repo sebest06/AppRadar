@@ -2,6 +2,10 @@ package com.appradar.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.Color
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,6 +38,31 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
+private fun createTeammateIcon(name: String, isOnline: Boolean, sos: Boolean): Bitmap {
+    val size = 72
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = when {
+            sos     -> Color.rgb(220, 38, 38)
+            isOnline -> Color.rgb(37, 99, 235)
+            else    -> Color.rgb(100, 116, 139)
+        }
+    }
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, bgPaint)
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 4f
+    }
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, borderPaint)
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; textSize = size * 0.38f
+        textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
+    }
+    val initial = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    canvas.drawText(initial, size / 2f, size / 2f + textPaint.textSize / 3f, textPaint)
+    return bmp
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveTrailScreen(
@@ -52,6 +81,7 @@ fun ActiveTrailScreen(
     val elapsedTime by viewModel.elapsedTimeMillis.collectAsState()
     val isSos by viewModel.isSos.collectAsState()
     val userIconResId by viewModel.userIconResId.collectAsState()
+    val teammatePositions by viewModel.teammatePositions.collectAsState()
     val error by viewModel.error.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -173,15 +203,28 @@ fun ActiveTrailScreen(
                         marker.position = GeoPoint(wp.latitude, wp.longitude)
                         val isReached = reachedWaypoints.contains(wp.waypointUuid)
                         marker.title = if (isReached) "Alcanzado: ${wp.name}" else wp.name
-                        
-                        // Set custom professional icon
                         val iconRes = if (isReached) R.drawable.ic_waypoint_reached else R.drawable.ic_waypoint
                         marker.icon = ContextCompat.getDrawable(context, iconRes)
                         marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        
                         mapView.overlays.add(marker)
                     }
-                    
+
+                    // Teammate markers
+                    teammatePositions.forEach { pos ->
+                        val marker = Marker(mapView)
+                        marker.position = GeoPoint(pos.lat, pos.lon)
+                        marker.title = pos.userName
+                        marker.snippet = buildString {
+                            if (pos.teamName.isNotBlank()) append(pos.teamName)
+                            if (pos.sos) append(" 🆘 SOS")
+                            if (!pos.isOnline) append(" (sin señal)")
+                        }
+                        val iconBitmap = createTeammateIcon(pos.userName, pos.isOnline, pos.sos)
+                        marker.icon = android.graphics.drawable.BitmapDrawable(context.resources, iconBitmap)
+                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        mapView.overlays.add(marker)
+                    }
+
                     mapView.invalidate()
                 }
             )

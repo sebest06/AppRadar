@@ -63,12 +63,20 @@ class ActiveTrailViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    private val _teammatePositions = MutableStateFlow<List<com.appradar.data.remote.LivePosition>>(emptyList())
+    val teammatePositions: StateFlow<List<com.appradar.data.remote.LivePosition>> = _teammatePositions
+
     private var currentRunUuid: String = ""
     private var initialStartTimeMillis: Long = 0L
     private var lastStartTimeMillis: Long = 0L
     private var accumulatedTimeMillis: Long = 0L
     private var timerJob: Job? = null
+    private var teammatePollingJob: Job? = null
     private var currentSessionUuid: String? = null
+
+    companion object {
+        private const val TEAMMATE_POLL_MS = 15_000L
+    }
 
     fun loadTrail(trailUuid: String) {
         viewModelScope.launch {
@@ -138,12 +146,27 @@ class ActiveTrailViewModel @Inject constructor(
             saveRaceRun(isCompleted = false)
             startTimer()
             startTrackingService()
+            startTeammatePolling(trailId)
+        }
+    }
+
+    private fun startTeammatePolling(trailUuid: String) {
+        teammatePollingJob?.cancel()
+        teammatePollingJob = viewModelScope.launch {
+            while (true) {
+                val positions = repository.getLivePositions(trailUuid, currentSessionUuid)
+                val myUuid = currentUser.value?.uuid
+                _teammatePositions.value = positions.filter { it.userUuid != myUuid }
+                delay(TEAMMATE_POLL_MS)
+            }
         }
     }
 
     fun stopRace() {
         if (!_isRaceStarted.value) return
 
+        teammatePollingJob?.cancel()
+        _teammatePositions.value = emptyList()
         timerJob?.cancel()
         val finalTime = if (_isPaused.value) accumulatedTimeMillis else accumulatedTimeMillis + (System.currentTimeMillis() - lastStartTimeMillis)
         _elapsedTimeMillis.value = finalTime
@@ -313,5 +336,6 @@ class ActiveTrailViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()
+        teammatePollingJob?.cancel()
     }
 }

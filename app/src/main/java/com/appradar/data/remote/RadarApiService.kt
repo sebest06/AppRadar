@@ -38,6 +38,12 @@ interface RadarApiService {
 
     @POST("gps/upload")
     suspend fun uploadGpsPosition(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<Unit>
+
+    @GET("races/live")
+    suspend fun getLivePositions(
+        @Query("trailUuid") trailUuid: String,
+        @Query("sessionUuid") sessionUuid: String? = null
+    ): Response<List<LivePosition>>
 }
 
 data class LoginResponse(
@@ -59,6 +65,18 @@ data class TrailDetailsResponse(
     val maxSkip: Int,
     val isActive: Boolean,
     val waypoints: List<WaypointEntity>
+)
+
+data class LivePosition(
+    val userUuid: String,
+    val userName: String,
+    val teamName: String,
+    val activityType: String = "runner",
+    val sos: Boolean = false,
+    val lat: Double,
+    val lon: Double,
+    val timestamp: Long,
+    val isOnline: Boolean
 )
 
 data class RankingEntry(

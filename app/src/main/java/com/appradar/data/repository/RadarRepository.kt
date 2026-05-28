@@ -127,6 +127,13 @@ class RadarRepository @Inject constructor(
         } catch (_: Exception) {}
     }
 
+    suspend fun getLivePositions(trailUuid: String, sessionUuid: String? = null): List<com.appradar.data.remote.LivePosition> {
+        return try {
+            val response = apiService.getLivePositions(trailUuid, sessionUuid)
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
         return try {
             val response = apiService.getRankings(trailUuid, teamUuid, sessionUuid)
