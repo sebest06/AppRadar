@@ -9,7 +9,7 @@
 
 import { test, expect, type APIRequestContext } from '@playwright/test'
 import { randomUUID } from 'crypto'
-import { API, loginViaUI, apiLogin } from './helpers'
+import { API, loginViaUI, apiLogin } from './helpers' // apiLogin se usa en los tests de endpoint
 
 const RUNNER_COUNT = 50
 const WAYPOINT_COUNT = 40
@@ -26,7 +26,7 @@ async function apiRegisterRunner(
   suffix: string
 ) {
   const res = await request.post(`${API}/auth/register`, {
-    data: { user: `runner_hm_${suffix}`, passw: '1234', nombre: `Corredor HM ${suffix}`, role: 'runner', uuid_team },
+    data: { user: `runner_hm_${suffix}`, passw: '123456', nombre: `Corredor HM ${suffix}`, role: 'runner', uuid_team },
   })
   const body = await res.json()
   return { userUuid: body.user.uuid as string, token: body.token as string }
@@ -93,14 +93,24 @@ async function apiSimulateRunner(
 let trailUuid = ''
 
 test.beforeAll(async ({ request }) => {
-  const { token: adminToken } = await apiLogin(request)
+  const suffix = Date.now()
 
-  const meRes = await request.get(`${API}/me`, { headers: { Authorization: `Bearer ${adminToken}` } })
-  const me = await meRes.json()
-  const teamUuid = me.uuid_team as string
+  // Crear un organizador con su propio equipo — el admin es superuser y no tiene uuid_team
+  const orgRes = await request.post(`${API}/auth/register`, {
+    data: {
+      user: `org_hm_${suffix}`,
+      passw: '123456',
+      nombre: 'Organizador Heatmap',
+      role: 'organizer',
+      team: `Equipo Heatmap ${suffix}`,
+    },
+  })
+  const orgBody = await orgRes.json()
+  const orgToken = orgBody.token as string
+  const teamUuid = orgBody.user.uuid_team as string
 
-  // Crear ruta con 40 waypoints
-  const trail = await apiCreateBigTrail(request, adminToken, `Heatmap Race ${Date.now()}`)
+  // Crear ruta con 40 waypoints usando el token del organizador
+  const trail = await apiCreateBigTrail(request, orgToken, `Heatmap Race ${suffix}`)
   trailUuid = trail.trailUuid
 
   // Obtener waypoints con sus UUIDs ordenados
@@ -110,23 +120,22 @@ test.beforeAll(async ({ request }) => {
     .sort((a: any, b: any) => a.order - b.order)
     .map((w: any) => ({ waypointUuid: w.waypointUuid, lat: w.lat, lon: w.lon }))
 
-  // Registrar 50 corredores en paralelo
-  const suffix = `${Date.now()}`
+  // Registrar 50 corredores en paralelo, todos uniéndose al equipo del organizador
   const runners = await Promise.all(
     Array.from({ length: RUNNER_COUNT }, (_, i) =>
       apiRegisterRunner(request, teamUuid, `${suffix}_${i}`)
     )
   )
 
-  // Aceptar a los 50 corredores en el equipo
-  await Promise.all(runners.map(r => apiAcceptRunner(request, adminToken, r.userUuid)))
+  // Aceptar a todos los corredores con el token del organizador (requireRole('organizer'))
+  await Promise.all(runners.map(r => apiAcceptRunner(request, orgToken, r.userUuid)))
 
   // Simular la carrera completa de los 50 corredores en paralelo
   // Cada corredor empieza 10 s después del anterior para que los timestamps no colisionen
   const baseStart = Date.now() - WAYPOINT_COUNT * 6 * 60_000
   await Promise.all(
     runners.map((r, i) =>
-      apiSimulateRunner(request, adminToken, r.token, r.userUuid, trailUuid, waypoints, baseStart + i * 10_000)
+      apiSimulateRunner(request, orgToken, r.token, r.userUuid, trailUuid, waypoints, baseStart + i * 10_000)
     )
   )
 }, 300_000)
