@@ -46,11 +46,12 @@ Inspirado en LiveTrail. Permite comparar el ritmo actual vs cualquier participan
 - [ ] Mostrar marcador fantasma en el mapa con su posición teórica
 - [ ] Indicador en la app Android: "vas 3 min adelantado al ghost"
 
-### M3. Estadísticas de carrera post-evento
-- [ ] Velocidad media, máxima y mínima por corredor
-- [ ] Gráfico de elevación vs tiempo
-- [ ] Exportar GPX del recorrido completo
-- [ ] Botón "Compartir, generar un link público con toda la estadistica de la carrera
+### ~~M3. Estadísticas de carrera post-evento~~ ✅ Completado
+- [x] Velocidad media y máxima por corredor en la fila expandida de resultados
+- [x] Distancia total entre waypoints alcanzados
+- [x] Exportar GPX del recorrido completo (endpoint `GET /races/:id/gpx/:userUuid`)
+- [x] Botón "Compartir" copia la URL pública al portapapeles
+- [ ] Gráfico de elevación vs tiempo (requiere datos de altitud — no disponibles en GPS actual)
 
 ### M4. Heatmap de posiciones
 - [ ] Vista de densidad de corredores en el mapa (leaflet.heat)

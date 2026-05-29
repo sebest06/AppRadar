@@ -4,7 +4,7 @@ Tests end-to-end que simulan un usuario real interactuando con el navegador. Pla
 
 **Cómo correrlos:** `cd frontend && npm run test:e2e`
 
-**Total:** 24 tests en 4 archivos
+**Total:** 31+ tests en 6 archivos
 
 ---
 
@@ -144,3 +144,59 @@ Desde la vista en vivo, hace clic en el primer link que contiene "admin" en la b
 
 **10. Editar carrera cambia el nombre en el dashboard**
 Navega a `/races/:id/edit` para una ruta existente, limpia el campo de nombre y escribe uno nuevo. Hace clic en "Guardar cambios" y verifica que la app redirige al dashboard con el nuevo nombre visible.
+
+---
+
+## 2.5 Simulación de carrera completa
+
+**Archivo:** `frontend/tests/race-simulation.spec.ts`
+
+Setup: registra un organizador con equipo, dos corredores (Ana y Bruno), los acepta, crea una carrera con 10 waypoints. Todo vía API en `beforeAll`.
+
+---
+
+**1. Dos corredores completan la carrera y el primero aparece como ganador**
+Crea los runs de ambos corredores, abre la vista en vivo como organizador y verifica que el mapa Leaflet carga. Luego simula GPS: en un loop de 10 waypoints, sube la posición GPS y el track de Ana (llegando primero), espera 1 segundo, luego sube los de Bruno. Al terminar el loop, verifica que ambos nombres aparecen en el panel de la vista en vivo. Marca a Ana como completada y navega a Resultados: verifica que la fila de Ana contiene "✓ Completó" y la de Bruno "En carrera".
+
+---
+
+## 2.6 Estadísticas post-carrera
+
+**Archivo:** `frontend/tests/results-stats.spec.ts`
+
+Setup: crea trail con 2 waypoints, run completado, tracks con 30 minutos de diferencia entre waypoints (para que haya velocidad calculable) y posiciones GPS. Todo vía API en `beforeAll`.
+
+---
+
+**1. La fila expandida muestra distancia y velocidad media del corredor**
+Navega a la página de resultados, expande la fila del corredor haciendo clic en la primera celda, y verifica que la fila expandida contiene "km", "media" y "km/h".
+
+---
+
+**2. La fila expandida muestra la velocidad máxima del corredor**
+Misma navegación que el test anterior. Verifica que la fila expandida contiene "máx".
+
+---
+
+**3. La fila expandida muestra el botón de descarga GPX**
+Expande la fila del corredor y verifica que aparece un link con el texto "Descargar GPX".
+
+---
+
+**4. El endpoint GPX devuelve un archivo GPX válido**
+Llama directamente a `GET /races/:id/gpx/:userUuid?sessionUuid=` vía `request` de Playwright. Verifica que la respuesta tiene status 200, `content-type: application/gpx+xml`, y que el body contiene las etiquetas `<gpx>`, `<trkpt>` y `</gpx>`.
+
+---
+
+**5. El endpoint GPX devuelve 404 si la sesión no existe**
+Llama al endpoint GPX con un `sessionUuid` inventado (UUID de ceros). Verifica que la respuesta es 404.
+
+---
+
+**6. El botón Compartir copia la URL al portapapeles y muestra confirmación**
+Otorga permisos de clipboard al contexto del navegador, navega a resultados y hace clic en el botón "Compartir". Verifica que aparece el texto "Link copiado" en la página y que el contenido del portapapeles contiene el path `/races/:id/results`.
+
+---
+
+**7. La página de resultados es accesible sin iniciar sesión**
+Abre un contexto de navegador completamente nuevo (sin cookies ni localStorage). Navega directamente a `/races/:id/results`. Verifica que la tabla de resultados es visible y que la URL no redirige a `/login`.
