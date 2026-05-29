@@ -156,7 +156,7 @@ Setup: registra un organizador con equipo, dos corredores (Ana y Bruno), los ace
 ---
 
 **1. Dos corredores completan la carrera y el primero aparece como ganador**
-Crea los runs de ambos corredores, abre la vista en vivo como organizador y verifica que el mapa Leaflet carga. Luego simula GPS: en un loop de 10 waypoints, sube la posición GPS y el track de Ana (llegando primero), espera 1 segundo, luego sube los de Bruno. Al terminar el loop, verifica que ambos nombres aparecen en el panel de la vista en vivo. Marca a Ana como completada y navega a Resultados: verifica que la fila de Ana contiene "✓ Completó" y la de Bruno "En carrera".
+Crea los runs de ambos corredores, abre la vista en vivo como organizador y verifica que el mapa Leaflet carga. Luego simula GPS: en un loop de 10 waypoints, sube la posición GPS y el track de Ana (llegando primero), espera 1 segundo, luego sube los de Bruno. Al terminar el loop, verifica que ambos nombres aparecen en el panel de la vista en vivo. Marca a Ana como completada y navega a Resultados: verifica que la fila de Ana contiene "✓ Completó".
 
 ---
 
@@ -200,3 +200,31 @@ Otorga permisos de clipboard al contexto del navegador, navega a resultados y ha
 
 **7. La página de resultados es accesible sin iniciar sesión**
 Abre un contexto de navegador completamente nuevo (sin cookies ni localStorage). Navega directamente a `/races/:id/results`. Verifica que la tabla de resultados es visible y que la URL no redirige a `/login`.
+
+---
+
+## 2.7 Heatmap de posiciones
+
+**Archivo:** `frontend/tests/heatmap.spec.ts`
+
+Setup: registra 50 corredores en el equipo del admin, crea una ruta con 40 waypoints (1 km entre cada uno, ~40 km total). Simula que los 50 corredores completan la carrera en paralelo, subiendo 40 posiciones GPS y 40 tracks por corredor (2000 puntos GPS en total). Todo vía API en `beforeAll` con timeout de 5 minutos.
+
+---
+
+**1. El botón Heatmap activa la capa de calor en el mapa**
+Navega a la vista en vivo como organizador. Verifica que el botón "🔥 Heatmap" está visible y en estado inactivo (fondo blanco). Intercepta la respuesta al endpoint `/heatmap`. Hace clic en el botón y verifica: el endpoint devuelve exactamente 2000 puntos GPS, el botón cambia a estado activo (naranja), y aparece el elemento `canvas.leaflet-heatmap-layer` dentro del mapa.
+
+---
+
+**2. El heatmap se desactiva al hacer clic nuevamente**
+Activa el heatmap y verifica que el canvas aparece. Hace clic nuevamente en el botón y verifica que el botón vuelve al estado inactivo y el canvas desaparece del DOM.
+
+---
+
+**3. El endpoint de heatmap devuelve los 2000 puntos GPS sin autenticación**
+Llama directamente a `GET /races/:id/heatmap` sin header de autorización. Verifica que la respuesta es 200, contiene exactamente 2000 elementos, y que cada punto es un array `[lat, lon]` de dos números.
+
+---
+
+**4. El endpoint de heatmap filtrado por sesión devuelve solo los puntos de esa sesión**
+Llama a `/heatmap` sin filtro y verifica 2000 puntos. Luego llama con un `sessionUuid` inexistente (UUID de ceros) y verifica que devuelve 200 con array vacío.

@@ -53,9 +53,10 @@ Inspirado en LiveTrail. Permite comparar el ritmo actual vs cualquier participan
 - [x] Botón "Compartir" copia la URL pública al portapapeles
 - [ ] Gráfico de elevación vs tiempo (requiere datos de altitud — no disponibles en GPS actual)
 
-### M4. Heatmap de posiciones
-- [ ] Vista de densidad de corredores en el mapa (leaflet.heat)
-- [ ] Útil para organizadores: ver dónde se concentra el pelotón
+### ~~M4. Heatmap de posiciones~~ ✅ Completado
+- [x] Vista de densidad de corredores en el mapa (`leaflet.heat`)
+- [x] Botón toggle "🔥 Heatmap" en la vista en vivo, filtrado por sesión activa
+- [x] Endpoint `GET /races/:trailId/heatmap?sessionUuid=` devuelve posiciones GPS
 
 ### M5. Integración con hardware GPS dedicado
 Para carreras en zonas sin cobertura celular (Patagonia, Andes).
@@ -148,10 +149,11 @@ Cuando estas en carrera, no queres tener tanta información distrayendote
 
 ### ✅ Testing
 - 94 tests Jest (backend)
-- 24+ tests Playwright E2E (frontend)
+- 35+ tests Playwright E2E (frontend)
 - 33 tests JVM/Robolectric (Android)
 - 5 flujos Maestro (Android integración)
 - Test de simulación de carrera completa (2 corredores, 10 waypoints)
+- Test de heatmap (50 corredores, 40 waypoints, 2000 puntos GPS)
 
 ### ✅ DevOps
 - Dockerfile multi-stage (frontend embebido en imagen backend)

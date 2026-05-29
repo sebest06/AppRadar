@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.heat'
 import { trailsApi, rankingsApi, racesApi } from '../services/api'
 import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate, onRaceEvent, offRaceEvent, onSocketConnect, offSocketConnect, onSocketDisconnect, offSocketDisconnect, onSocketError, offSocketError } from '../services/socket'
 import { useAuthStore } from '../store/authStore'
@@ -14,6 +15,26 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
+
+function HeatmapLayer({ points }: { points: [number, number][] }) {
+  const map = useMap()
+  const layerRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (!points.length) return
+    layerRef.current = (L as any).heatLayer(points, {
+      radius: 20,
+      blur: 15,
+      maxZoom: 17,
+      gradient: { 0.4: '#3b82f6', 0.65: '#22c55e', 1: '#ef4444' },
+    }).addTo(map)
+    return () => {
+      if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null }
+    }
+  }, [map, points])
+
+  return null
+}
 
 const runnerIcon = (name: string, isOnline: boolean, status?: 'completed' | 'abandoned' | 'sos', activityType?: 'runner' | 'bike' | 'car') => {
   const isSos = status === 'sos'
@@ -231,6 +252,8 @@ export default function LiveRace() {
   const [selectedUserPath, setSelectedUserPath] = useState<string | null>(null)
   const [userPathData, setUserPathData] = useState<[number, number][]>([])
   const [notifications, setNotifications] = useState<{ id: string, message: string, type: string }[]>([])
+  const [showHeatmap, setShowHeatmap] = useState(false)
+  const [heatmapPoints, setHeatmapPoints] = useState<[number, number][]>([])
   const rankTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const posTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const seenEvents = useRef<Set<string>>(new Set())
@@ -244,6 +267,16 @@ export default function LiveRace() {
       setUserPathData(r.data.map((p: any) => [p.lat, p.lon]))
     })
   }, [id, selectedUserPath])
+
+  useEffect(() => {
+    if (!id || !showHeatmap) {
+      setHeatmapPoints([])
+      return
+    }
+    racesApi.heatmap(id, activeSession ?? undefined).then(r => {
+      setHeatmapPoints(r.data)
+    }).catch(() => {})
+  }, [id, showHeatmap, activeSession])
 
   useEffect(() => {
     if (!id) return
@@ -500,7 +533,17 @@ export default function LiveRace() {
       {/* Main content */}
       <div className="flex-1 overflow-hidden lg:grid lg:grid-cols-3 lg:gap-0">
         {/* Map */}
-        <div className={`lg:col-span-2 ${tab === 'board' ? 'hidden lg:block' : 'block'} h-full`}>
+        <div className={`relative lg:col-span-2 ${tab === 'board' ? 'hidden lg:block' : 'block'} h-full`}>
+          <button
+            onClick={() => setShowHeatmap(v => !v)}
+            className={`absolute top-3 right-3 z-[1000] px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md border transition-all ${
+              showHeatmap
+                ? 'bg-orange-500 text-white border-orange-600'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            🔥 Heatmap
+          </button>
           <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false}>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -560,6 +603,8 @@ export default function LiveRace() {
                 </Marker>
               )
             })}
+
+            {showHeatmap && <HeatmapLayer points={heatmapPoints} />}
           </MapContainer>
         </div>
 

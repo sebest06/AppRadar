@@ -202,6 +202,33 @@ function createRacesRouter(db) {
     res.json(history)
   })
 
+  router.get('/races/:trailId/heatmap', (req, res) => {
+    const { trailId } = req.params
+    const { sessionUuid } = req.query
+
+    let positions
+    if (sessionUuid) {
+      const runs = db.prepare(
+        'SELECT userUuid, startTime, endTime FROM race_runs WHERE trailUuid = ? AND sessionUuid = ?'
+      ).all(trailId, sessionUuid)
+      if (!runs.length) return res.json([])
+      positions = []
+      for (const run of runs) {
+        const endTs = run.endTime || Date.now()
+        const pts = db.prepare(
+          'SELECT lat, lon FROM gps_positions WHERE userUuid = ? AND trailUuid = ? AND timestamp >= ? AND timestamp <= ?'
+        ).all(run.userUuid, trailId, run.startTime, endTs)
+        positions.push(...pts)
+      }
+    } else {
+      positions = db.prepare(
+        'SELECT lat, lon FROM gps_positions WHERE trailUuid = ?'
+      ).all(trailId)
+    }
+
+    res.json(positions.map(p => [p.lat, p.lon]))
+  })
+
   router.get('/races/:trailId/gpx/:userUuid', (req, res) => {
     const { trailId, userUuid } = req.params
     const { sessionUuid } = req.query

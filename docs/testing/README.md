@@ -7,7 +7,7 @@ Inventario completo de todos los tests del proyecto. Cada test está descrito en
 | Tipo | Archivos | Tests | Documento |
 |------|----------|-------|-----------|
 | Backend unitarios (Jest) | 6 | 94 | [01-backend-jest.md](01-backend-jest.md) |
-| Frontend E2E (Playwright) | 6 | 31+ | [02-frontend-playwright.md](02-frontend-playwright.md) |
+| Frontend E2E (Playwright) | 7 | 35+ | [02-frontend-playwright.md](02-frontend-playwright.md) |
 | Android unitarios (JVM/Robolectric) | 5 | 33 | [03-android-unit.md](03-android-unit.md) |
 | Android integración (Maestro) | 7 | 5 flujos + 1 suite | [04-android-maestro.md](04-android-maestro.md) |
 | E2E legacy (Maestro) | 2 | 2 flujos | [04-android-maestro.md](04-android-maestro.md) |
@@ -38,7 +38,7 @@ docker compose -f docker-compose.tests.yml up --exit-code-from tests
 docs/testing/
 ├── README.md                    ← este archivo (índice)
 ├── 01-backend-jest.md           ← 94 tests Jest (auth, gps, me, races, teams, trails)
-├── 02-frontend-playwright.md    ← 24 tests Playwright (auth, dashboard, profile, race)
+├── 02-frontend-playwright.md    ← 35+ tests Playwright (auth, dashboard, profile, race, simulación, stats, heatmap)
 ├── 03-android-unit.md           ← 33 tests JVM/Robolectric (entidad, ViewModel, helpers)
 └── 04-android-maestro.md        ← 5 flujos Maestro + legacy (integración E2E Android)
 ```

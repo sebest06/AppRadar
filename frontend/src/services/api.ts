@@ -135,4 +135,6 @@ export const racesApi = {
     api.delete(`/races/sessions/${sessionUuid}`),
   replay: (trailId: string, sessionUuid?: string) =>
     api.get<import('../types').ReplayData>(`/races/${trailId}/replay`, { params: sessionUuid ? { sessionUuid } : {} }),
+  heatmap: (trailId: string, sessionUuid?: string) =>
+    api.get<[number, number][]>(`/races/${trailId}/heatmap`, { params: sessionUuid ? { sessionUuid } : {} }),
 }
