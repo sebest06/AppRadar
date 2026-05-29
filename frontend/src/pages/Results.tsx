@@ -341,8 +341,40 @@ function Podium({ top3 }: { top3: RankingEntry[] }) {
   )
 }
 
-function ResultRow({ r, pos, waypoints, onSelect }: { r: RankingEntry; pos: number; waypoints: Waypoint[]; onSelect: () => void }) {
+function ShareButton() {
+  const [copied, setCopied] = useState(false)
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    })
+  }
+  return (
+    <button
+      onClick={handleShare}
+      className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1 transition-colors"
+    >
+      {copied
+        ? <><span className="text-green-600">✓</span> <span className="text-green-600">¡Link copiado!</span></>
+        : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Compartir</>
+      }
+    </button>
+  )
+}
+
+function ResultRow({ r, pos, waypoints, onSelect, trailId, sessionUuid }: {
+  r: RankingEntry; pos: number; waypoints: Waypoint[]; onSelect: () => void
+  trailId: string; sessionUuid: string | null
+}) {
   const [isExpanded, setIsExpanded] = useState(false)
+
+  const segments = buildAllSegments(r, waypoints).filter(Boolean) as SpeedSegment[]
+  const avgSpeed  = segments.length ? Math.round(segments.reduce((s, x) => s + x.speed, 0) / segments.length * 10) / 10 : null
+  const maxSpeed  = segments.length ? Math.round(Math.max(...segments.map(x => x.speed)) * 10) / 10 : null
+  const totalDist = segments.length ? Math.round(segments.reduce((s, x) => s + x.distanceKm, 0) * 100) / 100 : null
+
+  const BASE_URL = import.meta.env.VITE_API_URL || '/api'
+  const gpxUrl = `${BASE_URL}/races/${trailId}/gpx/${r.userUuid}${sessionUuid ? `?sessionUuid=${sessionUuid}` : ''}`
   const medals = ['🥇', '🥈', '🥉']
   const pct = r.totalWaypoints > 0 ? (r.waypointsReached / r.totalWaypoints) * 100 : 0
 
@@ -431,6 +463,24 @@ function ResultRow({ r, pos, waypoints, onSelect }: { r: RankingEntry; pos: numb
                 )
               })}
             </div>
+
+            {segments.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <div className="flex gap-4 text-sm">
+                  {totalDist != null && <span className="text-slate-500">📏 <strong className="text-slate-800">{totalDist} km</strong></span>}
+                  {avgSpeed  != null && <span className="text-slate-500">⚡ media <strong className="text-slate-800">{avgSpeed} km/h</strong></span>}
+                  {maxSpeed  != null && <span className="text-slate-500">🔝 máx <strong className="text-slate-800">{maxSpeed} km/h</strong></span>}
+                </div>
+                <a
+                  href={gpxUrl}
+                  download
+                  className="ml-auto text-xs font-semibold text-green-600 hover:text-green-700 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-green-200 hover:bg-green-50 transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Descargar GPX
+                </a>
+              </div>
+            )}
           </td>
         </tr>
       )}
@@ -636,6 +686,7 @@ export default function Results() {
             >
               📥 Descargar CSV
             </button>
+            <ShareButton />
           </div>
         </div>
         <div className="flex gap-2 flex-shrink-0">
@@ -767,7 +818,7 @@ export default function Results() {
               </thead>
               <tbody className="divide-y divide-slate-50 sm:divide-slate-100">
                 {rankings.map((r, i) => (
-                  <ResultRow key={r.userUuid} r={r} pos={i} waypoints={trail?.waypoints || []} onSelect={() => setSelectedRunner(r)} />
+                  <ResultRow key={r.userUuid} r={r} pos={i} waypoints={trail?.waypoints || []} onSelect={() => setSelectedRunner(r)} trailId={id!} sessionUuid={selectedSession} />
                 ))}
               </tbody>
             </table>

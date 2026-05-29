@@ -202,6 +202,53 @@ function createRacesRouter(db) {
     res.json(history)
   })
 
+  router.get('/races/:trailId/gpx/:userUuid', (req, res) => {
+    const { trailId, userUuid } = req.params
+    const { sessionUuid } = req.query
+
+    const user  = db.prepare('SELECT nombre FROM users WHERE uuid = ?').get(userUuid)
+    const trail = db.prepare('SELECT name FROM trails WHERE trailUuid = ?').get(trailId)
+
+    let positions
+    if (sessionUuid) {
+      const run = db.prepare(
+        'SELECT startTime, endTime FROM race_runs WHERE trailUuid = ? AND userUuid = ? AND sessionUuid = ?'
+      ).get(trailId, userUuid, sessionUuid)
+      if (!run) return res.status(404).json({ error: 'Carrera no encontrada' })
+      const endTs = run.endTime || Date.now()
+      positions = db.prepare(
+        'SELECT lat, lon, timestamp FROM gps_positions WHERE userUuid = ? AND trailUuid = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC'
+      ).all(userUuid, trailId, run.startTime, endTs)
+    } else {
+      positions = db.prepare(
+        'SELECT lat, lon, timestamp FROM gps_positions WHERE userUuid = ? AND trailUuid = ? ORDER BY timestamp ASC'
+      ).all(userUuid, trailId)
+    }
+
+    const escape = s => String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
+    const trailName  = escape(trail?.name  || 'Carrera')
+    const runnerName = escape(user?.nombre || 'Corredor')
+    const trkpts = positions.map(p =>
+      `      <trkpt lat="${p.lat}" lon="${p.lon}"><time>${new Date(p.timestamp).toISOString()}</time></trkpt>`
+    ).join('\n')
+
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="AppRadar" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${trailName} — ${runnerName}</name></metadata>
+  <trk>
+    <name>${trailName} — ${runnerName}</name>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>`
+
+    const slug = s => s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '')
+    res.setHeader('Content-Type', 'application/gpx+xml')
+    res.setHeader('Content-Disposition', `attachment; filename="${slug(trail?.name || 'carrera')}_${slug(user?.nombre || 'corredor')}.gpx"`)
+    res.send(gpx)
+  })
+
   return router
 }
 
