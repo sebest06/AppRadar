@@ -64,6 +64,10 @@ function formatSessionDate(ts: number) {
   return new Date(ts).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+function formatEta(eta: number) {
+  return new Date(eta).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+}
+
 function LeaderboardPanel({
   rankings,
   positions,
@@ -147,6 +151,11 @@ function LeaderboardPanel({
                       {!r.isCompleted && !r.isAbandoned && (
                         <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">
                           Próximo: {r.nextWaypoint}
+                        </span>
+                      )}
+                      {!r.isCompleted && !r.isAbandoned && r.eta != null && (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${r.eta < Date.now() ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          ETA {formatEta(r.eta)}
                         </span>
                       )}
                       {!r.isCompleted && !r.isAbandoned && pos?.isOnline && (

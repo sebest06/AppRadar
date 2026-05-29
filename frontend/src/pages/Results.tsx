@@ -11,6 +11,10 @@ function formatTime(ms: number) {
   return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
 
+function formatEta(eta: number) {
+  return new Date(eta).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+}
+
 function exportToCSV(trail: any, data: RankingEntry[]) {
   if (!data.length) return
   const rows = data.map((r, i) => ({
@@ -390,6 +394,12 @@ function ResultRow({ r, pos, waypoints, onSelect }: { r: RankingEntry; pos: numb
           </div>
         </td>
         <td className="px-4 py-3.5 text-right font-mono text-sm text-slate-700 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>{formatTime(r.totalTime)}</td>
+        <td className="px-4 py-3.5 text-center">
+          {!r.isCompleted && !r.isAbandoned && r.eta != null
+            ? <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.eta < Date.now() ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>{formatEta(r.eta)}</span>
+            : <span className="text-xs text-slate-300">—</span>
+          }
+        </td>
         <td className="px-4 py-3.5">
           <div className="flex items-center justify-center gap-2">
             {getStatusBadge()}
@@ -407,7 +417,7 @@ function ResultRow({ r, pos, waypoints, onSelect }: { r: RankingEntry; pos: numb
       {/* Expanded row (Desktop) */}
       {isExpanded && (
         <tr className={`hidden sm:table-row ${r.isCompleted ? 'bg-blue-50/50' : r.isAbandoned ? 'bg-red-50/50' : 'bg-slate-50/50'}`}>
-          <td colSpan={5} className="px-8 py-4">
+          <td colSpan={6} className="px-8 py-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {waypoints.map((wp) => {
                 const track = r.waypointTimes?.find(t => t.waypointUuid === wp.waypointUuid)
@@ -427,7 +437,7 @@ function ResultRow({ r, pos, waypoints, onSelect }: { r: RankingEntry; pos: numb
 
       {/* Mobile card */}
       <tr className="sm:hidden">
-        <td colSpan={5} className="px-4 py-2">
+        <td colSpan={6} className="px-4 py-2">
           <div
             className={`card p-4 transition-all border-l-4 ${
               r.isCompleted ? 'border-blue-500 bg-blue-50/30' :
@@ -751,6 +761,7 @@ export default function Results() {
                   <th className="px-4 py-3 text-left">Corredor</th>
                   <th className="px-4 py-3 text-left">Progreso</th>
                   <th className="px-4 py-3 text-right">Tiempo</th>
+                  <th className="px-4 py-3 text-center">ETA</th>
                   <th className="px-4 py-3 text-center">Estado</th>
                 </tr>
               </thead>

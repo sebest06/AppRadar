@@ -62,6 +62,20 @@ function computeRankings(db, trailUuid, teamUuid, sessionUuid = null) {
       ? (nextWp.name || `WP ${nextWp.order}`)
       : (run.isCompleted ? 'Finalizado' : '---')
 
+    // ETA: solo para corredores activos con al menos 1 waypoint alcanzado
+    let eta = null
+    const reached = stats.reached ?? 0
+    const isActive = !run.isCompleted && !run.isAbandoned
+    if (isActive && reached > 0 && totalWaypoints > reached) {
+      const lastTs = stats.lastTs
+      const firstTs = runWpTimes[0]?.timestamp ?? run.startTime
+      const avgPaceMs = reached >= 2
+        ? (lastTs - firstTs) / (reached - 1)
+        : (lastTs - run.startTime)
+      const remaining = totalWaypoints - reached
+      eta = lastTs + remaining * avgPaceMs
+    }
+
     return {
       userUuid: run.userUuid,
       userName: user?.nombre ?? 'Desconocido',
@@ -76,6 +90,7 @@ function computeRankings(db, trailUuid, teamUuid, sessionUuid = null) {
       activityType: user?.activityType || 'runner',
       waypointTimes,
       nextWaypoint,
+      eta,
     }
   })
 

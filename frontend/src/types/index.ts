@@ -52,6 +52,7 @@ export interface RankingEntry {
     timeFromStart: number
   }[]
   nextWaypoint?: string
+  eta?: number | null
 }
 
 export interface LivePosition {
