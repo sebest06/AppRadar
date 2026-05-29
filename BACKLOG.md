@@ -1,147 +1,164 @@
 # Backlog de AppRadar
 
-## Prioridad: CRÍTICA — Backend Producción
+## Estado general del proyecto
 
-### B1. Migrar backend a persistencia real
-- [ ] Agregar SQLite con `better-sqlite3` o `knex` al backend
-- [ ] Migrar usuarios, trails, waypoints, tracks y raceRuns a tablas SQL
-- [ ] Crear script de migración inicial con datos de ejemplo
-- [ ] Agregar `dotenv` y leer configuración desde variables de entorno
-
-### B2. Autenticación real con JWT
-- [ ] Instalar `jsonwebtoken` y `bcryptjs`
-- [ ] Endpoint `POST /auth/register` — crear nuevo usuario con contraseña hasheada
-- [ ] Modificar `POST /auth/login` para devolver JWT access token
-- [ ] Middleware `authMiddleware` que valide el token en rutas protegidas
-- [ ] Endpoint `POST /auth/refresh` para renovar tokens
-- [ ] Aplicar `authMiddleware` a todos los endpoints excepto login/register
-
-### B3. WebSocket para tiempo real
-- [ ] Instalar `socket.io` en el backend
-- [ ] Evento `join_race` — corredor se une al room de una carrera
-- [ ] Evento `position_update` — corredor envía posición GPS cada N segundos
-- [ ] Broadcast `position_broadcast` — el server reenvía la posición a todos en el room
-- [ ] Evento `waypoint_reached` — notificación cuando alguien pasa un waypoint
-- [ ] Evento `race_update` — ranking actualizado en tiempo real
-
-### B4. Endpoints CRUD de carreras (para frontend web)
-- [ ] `POST /trails` — crear carrera (con nombre, distancia, elevación, waypoints)
-- [ ] `PUT /trails/:id` — editar carrera
-- [ ] `DELETE /trails/:id` — eliminar carrera (solo organizador)
-- [ ] `POST /trails/:id/waypoints` — agregar waypoints
-- [ ] `GET /races/live` — carreras activas ahora mismo
-
-### B5. Dockerización y despliegue
-- [ ] Crear `Dockerfile` en `/backend`
-- [ ] Crear `docker-compose.yml` para entorno local (backend + db)
-- [ ] Crear `.env.example` con todas las variables requeridas
-- [ ] Documentar proceso de despliegue en Railway/Render/DO
+| Área | Estado |
+|------|--------|
+| Backend (persistencia, auth, WebSocket, CRUD) | ✅ Completado |
+| Frontend React (auth, dashboard, live, resultados, perfil) | ✅ Completado |
+| Android (GPS, sync, offline-first, WearOS) | ✅ Completado |
+| Tests (Jest, Playwright, JVM, Maestro) | ✅ Completado |
+| Docker + CI/CD | ✅ Completado |
 
 ---
 
-## Prioridad: ALTA — Frontend ReactJS
+## Prioridad: ALTA — Android App (pendiente)
 
-### F1. Setup del proyecto frontend
-- [ ] `npm create vite@latest frontend -- --template react-ts`
-- [ ] Instalar dependencias: `react-router-dom`, `axios`, `leaflet`, `react-leaflet`, `socket.io-client`, `@tanstack/react-query`, `tailwindcss`
-- [ ] Configurar `VITE_API_URL` como variable de entorno
-- [ ] Crear estructura de carpetas: `pages/`, `components/`, `services/`, `hooks/`, `store/`
-- [ ] Configurar React Router con rutas protegidas
+### A1. Ver posiciones de compañeros en el mapa en tiempo real
+Actualmente la app solo envía su propia posición. No recibe posiciones de compañeros.
+- [ ] Conectar Socket.IO en el `TrackingService` (recibir `position_broadcast`)
+- [ ] Mostrar marcadores de compañeros en el mapa OSMDroid durante la carrera
+- [ ] Actualizar posición suavemente cuando llega nueva posición del servidor
+- [ ] Mostrar nombre del corredor en el marcador
+- [ ] Indicador visual: verde si online (<2 min), gris si sin señal
 
-### F2. Autenticación en el frontend
-- [ ] Página `/login` — formulario usuario + contraseña
-- [ ] Página `/register` — formulario de registro con nombre, email, contraseña, equipo
-- [ ] Guardar JWT en `localStorage` o cookie httpOnly
-- [ ] `AuthContext` o Zustand store para estado de autenticación global
-- [ ] Redirect automático si el token expira
-
-### F3. Dashboard principal
-- [ ] Página `/dashboard` — lista de carreras disponibles
-- [ ] Componente `RaceCard` con nombre, fecha, distancia, estado (activa/finalizada)
-- [ ] Filtros: mis carreras / todas las carreras / carreras activas
-- [ ] Búsqueda por nombre de carrera
-
-### F4. Creación de carreras (organizador)
-- [ ] Página `/races/new` — formulario de creación de carrera
-- [ ] Input de nombre, descripción, distancia, elevación, fecha
-- [ ] Upload de archivo GPX para extraer waypoints automáticamente
-- [ ] Vista previa del recorrido en mapa Leaflet
-- [ ] Edición de waypoints en el mapa (drag & drop, agregar, eliminar)
-- [ ] Configurar parámetro `maxSkip` (waypoints saltables)
-- [ ] Botón "Publicar carrera" que la hace visible a todos
-
-### F5. Vista en vivo de una carrera (espectador)
-- [ ] Página `/races/:id/live` — mapa con posiciones en tiempo real
-- [ ] Conectar Socket.IO al iniciar la página
-- [ ] Mostrar marcadores de cada corredor en el mapa con su nombre
-- [ ] Sidebar con tabla de posiciones actualizada en tiempo real
-- [ ] Mostrar ruta del trail en el mapa
-- [ ] Marcadores de waypoints (alcanzados / pendientes)
-- [ ] Indicador de última actualización de posición por corredor
-- [ ] Auto-zoom para mostrar todos los corredores
-
-### F6. Resultados de carrera
-- [ ] Página `/races/:id/results` — resultados finales
-- [ ] Tabla con posición, nombre, equipo, tiempo total, waypoints
-- [ ] Exportar resultados a CSV
-- [ ] Vista de historial de carrera de un corredor específico
-
-### F7. Perfil de usuario
-- [ ] Página `/profile` — datos del usuario
-- [ ] Historial de carreras del usuario
-- [ ] Estadísticas: total de carreras, km totales, etc.
-- [ ] Cambiar contraseña
-
----
-
-## Prioridad: ALTA — Android App (Mejoras)
-
-### A1. Enviar posición GPS en tiempo real (WebSocket)
-- [ ] Integrar Socket.IO en el cliente Android (`socket.io-client:2.1.0`)
-- [ ] Conectar al iniciar una carrera y enviar posición cada 10 segundos
-- [ ] Manejar reconexión automática si se pierde la señal
-- [ ] Fallback a modo offline si no hay conexión
-
-### A2. Ver posiciones de compañeros de equipo en el mapa
-- [ ] Recibir `position_broadcast` via WebSocket
-- [ ] Mostrar marcadores de compañeros en OSMDroid
-- [ ] Actualizar posición suavemente con animación
-- [ ] Mostrar nombre del compañero en el marcador
-
-### A3. Notificaciones de progreso del equipo
+### A2. Notificaciones de progreso del equipo
 - [ ] Notificación cuando un compañero alcanza un waypoint
-- [ ] Notificación cuando alguien completa la carrera
+- [ ] Notificación cuando alguien completa la carrera o activa SOS
+- [ ] Configurable desde Ajustes (activar/desactivar)
+
+### A3. Notificación push al organizador en SOS
+El SOS ya se guarda en el backend y muestra en el mapa web, pero no hay alerta proactiva.
+- [ ] Enviar notificación push al dispositivo del organizador cuando un corredor activa SOS
+- [ ] Incluir coordenadas GPS exactas en la notificación
+
+---
+
+## Prioridad: ALTA — Frontend (pendiente)
+
+### F1. Notificaciones push web (Web Push API)
+- [ ] Service Worker para recibir push notifications
+- [ ] Suscripción a alertas de un corredor específico
+- [ ] Notificación: "Juan pasó el Checkpoint 3 — va en 2° lugar"
+- [ ] Notificación: "Ana activó el S.O.S."
+
+### F2. Replay — controles de velocidad
+El replay existe pero es lineal a velocidad fija.
+- [ ] Controles de velocidad de reproducción (1×, 2×, 5×)
+- [ ] Barra de progreso con scrubbing (arrastrar al minuto que quieras)
+- [ ] Pausa y reanudación
 
 ---
 
 ## Prioridad: MEDIA — Features adicionales
 
-### M1. Modo espectador en la app Android
-- [ ] Pantalla de seguimiento sin estar corriendo
-- [ ] Ver en tiempo real a todos los corredores de una carrera
+### M1. Predicción de tiempo de llegada (ETA)
+- [ ] Calcular velocidad media de los últimos N waypoints del corredor
+- [ ] Proyectar tiempo restante considerando waypoints pendientes
+- [ ] Mostrar ETA en el leaderboard: "ETA: 14:32"
 
-### M2. Replay de carrera
-- [ ] Almacenar historial de posiciones GPS (cada 30 segundos)
-- [ ] Reproducir el recorrido completo de cada corredor en el frontend web
-- [ ] Control de velocidad de reproducción (1x, 2x, 5x)
+### M2. "Ghost Runner" — corredor de referencia
+Inspirado en LiveTrail. Permite comparar el ritmo actual vs el ganador de la edición anterior.
+- [ ] Importar track histórico (GPX o JSON) como referencia
+- [ ] Mostrar marcador fantasma en el mapa con su posición teórica
+- [ ] Indicador en la app Android: "vas 3 min adelantado al ghost"
 
-### M3. SOS / Emergencias
-- [ ] Botón SOS en la app Android
-- [ ] Alerta al organizador con posición GPS exacta
-- [ ] Notificación a todos los espectadores del evento
+### M3. Estadísticas de carrera post-evento
+- [ ] Velocidad media, máxima y mínima por corredor
+- [ ] Gráfico de elevación vs tiempo
+- [ ] Exportar GPX del recorrido completo
+- [ ] Botón "Compartir en Strava" via OAuth
 
-### M4. Integración con hardware GPS dedicado
-- [ ] Soporte para trackers Garmin inReach via API
-- [ ] Soporte para dispositivos SPOT
+### M4. Heatmap de posiciones
+- [ ] Vista de densidad de corredores en el mapa (leaflet.heat)
+- [ ] Útil para organizadores: ver dónde se concentra el pelotón
+
+### M5. Integración con hardware GPS dedicado
+Para carreras en zonas sin cobertura celular (Patagonia, Andes).
+- [ ] Endpoint para recibir datos de trackers Garmin inReach / SPOT via webhook
+- [ ] Mostrar posición en el mapa con indicador "vía satellite"
+
+### M6. Notificaciones de actividad del equipo (Android)
+- [ ] Push notification cuando el organizador acepta/rechaza la solicitud de un corredor
+- [ ] Feedback inmediato en lugar de tener que refrescar manualmente
 
 ---
 
-## Futuro / Ideas
+## Prioridad: BAJA — Mejoras técnicas
 
-- Integración con Strava (importar/exportar actividades)
-- App iOS (React Native para compartir código con frontend)
-- Sistema de puntos y rankings históricos entre carreras
-- Predicción de tiempos basada en ritmo actual
-- Gestión de equipos y roles (organizador, corredor, espectador)
-- Notificaciones push web (PWA)
-- Modo offline del frontend web (Service Worker)
+### T1. Rate limiting en auth
+- [ ] Instalar `express-rate-limit`
+- [ ] Limitar intentos de login: max 5 por IP por minuto
+- [ ] Limitar registro: max 10 por IP por hora
+
+### T2. Headers de seguridad HTTP
+- [ ] Instalar `helmet` en el backend
+- [ ] Configurar CSP, X-Frame-Options, HSTS
+
+### T3. Migración a PostgreSQL
+- [ ] Cuando el volumen de corredores supere la capacidad de SQLite
+- [ ] Script de migración de datos SQLite → PostgreSQL
+- [ ] Usar `knex` como query builder para soportar ambos motores
+
+### T4. Redis pub/sub para escala horizontal
+- [ ] Si se necesitan múltiples instancias Node.js en paralelo
+- [ ] Socket.IO necesita Redis adapter para sincronizar rooms entre instancias
+
+### T5. Tiles de mapa offline (frontend web)
+- [ ] Pre-cargar tiles OSM para la zona de la carrera antes del evento
+- [ ] Plugin `leaflet.offline` + Service Worker
+- [ ] Útil cuando el espectador tiene señal débil en el evento
+
+### T6. Android — Tests de integración en CI
+- [ ] Los tests Maestro actualmente no corren en GitHub Actions
+- [ ] Agregar job que levante emulador Android en CI y corra los flujos
+
+---
+
+## Completado (referencia)
+
+### ✅ Backend
+- Persistencia SQLite con `better-sqlite3`
+- JWT access token (1h) + refresh token (30d)
+- bcrypt para contraseñas
+- Zod para validación de inputs
+- Socket.IO con rooms por carrera
+- CRUD completo de trails y waypoints
+- Endpoints: login, register, refresh, me, rankings, live, replay, events, sessions
+- Paginación en rankings y sessions
+- Autorización por rol (organizer/superuser/runner)
+- Cooldown entre carreras
+- Delete de sesión con autorización
+
+### ✅ Frontend
+- Login y registro
+- Dashboard con filtros (todas/en vivo/mis carreras) y búsqueda
+- Crear carrera con waypoints manuales o GPX
+- Editar carrera
+- Vista en vivo con mapa Leaflet + WebSocket + ranking
+- Resultados con podio, tabla, gráfico de velocidad por tramo
+- Replay de carrera animado
+- Perfil de usuario, historial de carreras, cambio de contraseña
+- Manejo de errores en todas las pantallas
+- Refresh tokens automático
+
+### ✅ Android
+- GPS tracking offline-first con Room
+- Sincronización en background con WorkManager
+- Soporte GPX
+- URL del backend configurable
+- WearOS app
+- Notificaciones de ranking durante carrera
+- Mapa con waypoints
+
+### ✅ Testing
+- 94 tests Jest (backend)
+- 24+ tests Playwright E2E (frontend)
+- 33 tests JVM/Robolectric (Android)
+- 5 flujos Maestro (Android integración)
+- Test de simulación de carrera completa (2 corredores, 10 waypoints)
+
+### ✅ DevOps
+- Dockerfile multi-stage (frontend embebido en imagen backend)
+- docker-compose.prod.yml, local.yml, tests.yml, integration.yml
+- GitHub Actions CI (Jest + Playwright + Docker build)
