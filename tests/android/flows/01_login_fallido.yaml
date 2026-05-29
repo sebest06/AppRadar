@@ -9,6 +9,16 @@ appId: com.appradar
 - assertVisible: "Complete todos los campos"
 
 # Credenciales incorrectas
+
+- longPressOn: "Dirección REST API"
+- eraseText: 50
+- longPressOn: "Dirección REST API"
+- eraseText: 50
+- longPressOn: "Dirección REST API"
+- eraseText: 50
+- longPressOn: "Dirección REST API"
+- eraseText: 50
+
 - tapOn: "Dirección REST API"
 - eraseText: 100
 - inputText: "${API_URL}"

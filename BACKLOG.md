@@ -14,20 +14,10 @@
 
 ## Prioridad: ALTA — Android App (pendiente)
 
-### A1. Ver posiciones de compañeros en el mapa en tiempo real
-Actualmente la app solo envía su propia posición. No recibe posiciones de compañeros.
-- [ ] Conectar Socket.IO en el `TrackingService` (recibir `position_broadcast`)
-- [ ] Mostrar marcadores de compañeros en el mapa OSMDroid durante la carrera
-- [ ] Actualizar posición suavemente cuando llega nueva posición del servidor
-- [ ] Mostrar nombre del corredor en el marcador
-- [ ] Indicador visual: verde si online (<2 min), gris si sin señal
-
-### A2. Notificaciones de progreso del equipo
-- [ ] Notificación cuando un compañero alcanza un waypoint
-- [ ] Notificación cuando alguien completa la carrera o activa SOS
+### A1. Notificaciones de progreso del equipo
 - [ ] Configurable desde Ajustes (activar/desactivar)
 
-### A3. Notificación push al organizador en SOS
+### A2. Notificación push al organizador en SOS
 El SOS ya se guarda en el backend y muestra en el mapa web, pero no hay alerta proactiva.
 - [ ] Enviar notificación push al dispositivo del organizador cuando un corredor activa SOS
 - [ ] Incluir coordenadas GPS exactas en la notificación
@@ -35,18 +25,6 @@ El SOS ya se guarda en el backend y muestra en el mapa web, pero no hay alerta p
 ---
 
 ## Prioridad: ALTA — Frontend (pendiente)
-
-### F1. Notificaciones push web (Web Push API)
-- [ ] Service Worker para recibir push notifications
-- [ ] Suscripción a alertas de un corredor específico
-- [ ] Notificación: "Juan pasó el Checkpoint 3 — va en 2° lugar"
-- [ ] Notificación: "Ana activó el S.O.S."
-
-### F2. Replay — controles de velocidad
-El replay existe pero es lineal a velocidad fija.
-- [ ] Controles de velocidad de reproducción (1×, 2×, 5×)
-- [ ] Barra de progreso con scrubbing (arrastrar al minuto que quieras)
-- [ ] Pausa y reanudación
 
 ---
 
@@ -58,7 +36,7 @@ El replay existe pero es lineal a velocidad fija.
 - [ ] Mostrar ETA en el leaderboard: "ETA: 14:32"
 
 ### M2. "Ghost Runner" — corredor de referencia
-Inspirado en LiveTrail. Permite comparar el ritmo actual vs el ganador de la edición anterior.
+Inspirado en LiveTrail. Permite comparar el ritmo actual vs cualquier participante anterior incluso uno mismo.
 - [ ] Importar track histórico (GPX o JSON) como referencia
 - [ ] Mostrar marcador fantasma en el mapa con su posición teórica
 - [ ] Indicador en la app Android: "vas 3 min adelantado al ghost"
@@ -67,7 +45,7 @@ Inspirado en LiveTrail. Permite comparar el ritmo actual vs el ganador de la edi
 - [ ] Velocidad media, máxima y mínima por corredor
 - [ ] Gráfico de elevación vs tiempo
 - [ ] Exportar GPX del recorrido completo
-- [ ] Botón "Compartir en Strava" via OAuth
+- [ ] Botón "Compartir, generar un link público con toda la estadistica de la carrera
 
 ### M4. Heatmap de posiciones
 - [ ] Vista de densidad de corredores en el mapa (leaflet.heat)
@@ -81,6 +59,17 @@ Para carreras en zonas sin cobertura celular (Patagonia, Andes).
 ### M6. Notificaciones de actividad del equipo (Android)
 - [ ] Push notification cuando el organizador acepta/rechaza la solicitud de un corredor
 - [ ] Feedback inmediato en lugar de tener que refrescar manualmente
+
+### M7. Permitir crear lista de amigos dentro del equipo
+Cuando estas en carrera, no queres tener tanta información distrayendote
+- [ ] Agregar una configuración para seleccionar si queres ver a todos los competidores, a ninguno, solo a todos tus amigos, o solo a algunos amigos
+- [ ] En el mapa durante la carrera solo se muestran los competidores que seleccionaste
+
+### M8. Notificaciones push web (Web Push API)
+- [ ] Service Worker para recibir push notifications
+- [ ] Suscripción a alertas de un corredor específico
+- [ ] Notificación: "Juan pasó el Checkpoint 3 — va en 2° lugar"
+- [ ] Notificación: "Ana activó el S.O.S."
 
 ---
 

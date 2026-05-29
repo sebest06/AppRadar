@@ -5,7 +5,7 @@ appId: com.appradar
 # Variables requeridas: API_URL (ej. http://192.168.1.100:3000/)
 # Abrir configuración
 - tapOn:
-    id: "Configuración"
+    id: "Settings"
 - assertVisible: "Configuración"
 - assertVisible: "Selecciona tu icono"
 

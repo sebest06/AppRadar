@@ -4,16 +4,16 @@ appId: com.appradar
 # Variables requeridas: API_URL (ej. http://192.168.1.100:3000/)
 
 - longPressOn: "Dirección REST API"
-- eraseText: 1
+- eraseText: 50
 
 - longPressOn: "Dirección REST API"
-- eraseText: 1
+- eraseText: 50
 
 - longPressOn: "Dirección REST API"
-- eraseText: 1
+- eraseText: 50
 
 - longPressOn: "Dirección REST API"
-- eraseText: 1
+- eraseText: 50
 
 - tapOn: "Dirección REST API"
 - eraseText: 100
