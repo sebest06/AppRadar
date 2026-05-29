@@ -22,6 +22,10 @@ El SOS ya se guarda en el backend y muestra en el mapa web, pero no hay alerta p
 - [ ] Enviar notificación push al dispositivo del organizador cuando un corredor activa SOS
 - [ ] Incluir coordenadas GPS exactas en la notificación
 
+### A3. Crear una pantalla de visión general del equipo para el organizador
+- [ ] Crear una pantalla donde pueda ver en una lista ordenada la posicion de todos los corredores del equipo
+- [ ] Distinguir en la lista, si el corredor, abandono, pidio SOS, o termino la carrera
+- [ ] Permitir enviar un mensaje a algun corredor o a todos y que el corredor lo reciba como una notificación en la aplicación Android
 ---
 
 ## Prioridad: ALTA — Frontend (pendiente)
@@ -30,10 +34,11 @@ El SOS ya se guarda en el backend y muestra en el mapa web, pero no hay alerta p
 
 ## Prioridad: MEDIA — Features adicionales
 
-### M1. Predicción de tiempo de llegada (ETA)
-- [ ] Calcular velocidad media de los últimos N waypoints del corredor
-- [ ] Proyectar tiempo restante considerando waypoints pendientes
-- [ ] Mostrar ETA en el leaderboard: "ETA: 14:32"
+### ~~M1. Predicción de tiempo de llegada (ETA)~~ ✅ Completado
+- [x] Calcular ritmo promedio entre waypoints alcanzados
+- [x] Proyectar hora estimada de llegada a la meta
+- [x] Mostrar ETA en vista en vivo (badge verde/naranja si pasó la hora)
+- [x] Mostrar ETA en tabla de resultados como columna adicional
 
 ### M2. "Ghost Runner" — corredor de referencia
 Inspirado en LiveTrail. Permite comparar el ritmo actual vs cualquier participante anterior incluso uno mismo.
