@@ -4,8 +4,9 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
-import { trailsApi, rankingsApi, racesApi } from '../services/api'
-import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate, onRaceEvent, offRaceEvent, onSocketConnect, offSocketConnect, onSocketDisconnect, offSocketDisconnect, onSocketError, offSocketError } from '../services/socket'
+import { trailsApi, rankingsApi, racesApi, messagesApi } from '../services/api'
+import type { MessageDto } from '../types'
+import { joinRace, leaveRace, onPositionUpdate, offPositionUpdate, onRaceUpdate, offRaceUpdate, onRaceEvent, offRaceEvent, onNewMessage, offNewMessage, onSocketConnect, offSocketConnect, onSocketDisconnect, offSocketDisconnect, onSocketError, offSocketError } from '../services/socket'
 import { useAuthStore } from '../store/authStore'
 import type { TrailWithWaypoints, LivePosition, RankingEntry, RaceSession, Waypoint } from '../types'
 
@@ -254,9 +255,11 @@ export default function LiveRace() {
   const [notifications, setNotifications] = useState<{ id: string, message: string, type: string }[]>([])
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [heatmapPoints, setHeatmapPoints] = useState<[number, number][]>([])
+  const [msgNotifs, setMsgNotifs] = useState<{ id: string; senderName: string; content: string }[]>([])
   const rankTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const posTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const seenEvents = useRef<Set<string>>(new Set())
+  const msgSince = useRef<number>(Date.now() - 5 * 60_000)
 
   useEffect(() => {
     if (!id || !selectedUserPath) {
@@ -374,12 +377,25 @@ export default function LiveRace() {
       }, 5000)
     }
 
+    const user = useAuthStore.getState().user
+    const onMsg = (m: MessageDto) => {
+      // Ignore own messages and messages not meant for this user
+      if (m.senderUuid === user?.uuid) return
+      if (m.recipientUuid && m.recipientUuid !== user?.uuid) return
+      const notifId = Math.random().toString(36).slice(2)
+      setMsgNotifs(prev => [...prev, { id: notifId, senderName: m.senderName, content: m.content }])
+      setTimeout(() => setMsgNotifs(prev => prev.filter(n => n.id !== notifId)), 10_000)
+      // Advance the poll cursor so the same message isn't shown again by the fallback poll
+      msgSince.current = Math.max(msgSince.current, m.timestamp + 1)
+    }
+
     onSocketConnect(onConnect)
     onSocketDisconnect(onDisconnect)
     onSocketError(onError)
     onPositionUpdate(onPos)
     onRaceUpdate(onRank)
     onRaceEvent(onEvent)
+    onNewMessage(onMsg)
     joinRace(id, token)
 
     return () => {
@@ -389,8 +405,28 @@ export default function LiveRace() {
       offPositionUpdate(onPos)
       offRaceUpdate(onRank)
       offRaceEvent(onEvent)
+      offNewMessage(onMsg)
       leaveRace(id)
     }
+  }, [id, token])
+
+  // Poll organizer messages on mount and every 20s (show as floating notifications)
+  useEffect(() => {
+    if (!id || !token) return
+    const poll = () => {
+      messagesApi.get(id, msgSince.current).then(r => {
+        if (!r.data.length) return
+        msgSince.current = Math.max(...r.data.map((m: MessageDto) => m.timestamp)) + 1
+        for (const m of r.data) {
+          const notifId = Math.random().toString(36).slice(2)
+          setMsgNotifs(prev => [...prev, { id: notifId, senderName: m.senderName, content: m.content }])
+          setTimeout(() => setMsgNotifs(prev => prev.filter(n => n.id !== notifId)), 10_000)
+        }
+      }).catch(() => {})
+    }
+    poll()
+    const timer = setInterval(poll, 20_000)
+    return () => clearInterval(timer)
   }, [id, token])
 
   const onlineCount = useMemo(() => Array.from(positions.values()).filter((p) => p.isOnline).length, [positions])
@@ -428,6 +464,18 @@ export default function LiveRace() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] relative">
+      {/* Organizer message notifications (bottom-left, blue) */}
+      {msgNotifs.length > 0 && (
+        <div className="absolute bottom-4 left-4 z-[1000] flex flex-col gap-2 max-w-xs pointer-events-none">
+          {msgNotifs.map(n => (
+            <div key={n.id} className="bg-blue-700 text-white px-4 py-3 rounded-xl shadow-xl animate-bounce-in">
+              <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">📢 {n.senderName}</p>
+              <p className="text-sm mt-0.5 leading-snug">{n.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Real-time Notifications */}
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
         {notifications.map(n => (
@@ -490,6 +538,14 @@ export default function LiveRace() {
             {connected ? `${onlineCount} GPS · ${positions.size} total` : `${positions.size} rastreados`}
           </span>
 
+          {(user?.role === 'organizer' || user?.role === 'superuser') && (
+            <Link
+              to={`/races/${id}/organizer`}
+              className="hidden sm:inline-flex items-center gap-1 btn-ghost text-sm py-1.5 px-3 font-semibold text-green-700"
+            >
+              📋 Panel
+            </Link>
+          )}
           <Link to={`/races/${id}/notifications`} className="hidden sm:inline-flex btn-ghost text-sm py-1.5 px-3">
             Eventos
           </Link>

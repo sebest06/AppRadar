@@ -93,6 +93,9 @@ dependencies {
     // Location
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
+    // Socket.IO client for real-time message delivery
+    implementation("io.socket:socket.io-client:2.1.0")
+
     // OSMDroid (OpenStreetMap)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 

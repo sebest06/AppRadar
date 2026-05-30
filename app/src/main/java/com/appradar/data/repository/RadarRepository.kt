@@ -44,15 +44,21 @@ class RadarRepository @Inject constructor(
     suspend fun syncTrailsFromApi() {
         try {
             val response = apiService.getTrails()
-            if (response.isSuccessful && response.body() != null) {
-                val trails = response.body()!!
-                saveTrails(trails)
-                // Para cada carrera, descargar detalles (waypoints)
-                trails.forEach { trail ->
-                    downloadTrailDetails(trail.trailUuid)
-                }
+            if (!response.isSuccessful) return
+            val trails = response.body() ?: return
+            // Only replace local data when the server returns actual trails.
+            // An empty list most often means the auth token is stale (teamStatus still
+            // 'pending') or the user has no team yet — not that all races were deleted.
+            // Keeping the cache in that case avoids a blank list after sync.
+            if (trails.isEmpty()) return
+            radarDao.deleteAllPathPoints()
+            radarDao.deleteAllWaypoints()
+            radarDao.deleteAllTrails()
+            saveTrails(trails)
+            trails.forEach { trail ->
+                downloadTrailDetails(trail.trailUuid)
             }
-        } catch (e: Exception) {}
+        } catch (_: Exception) {}
     }
 
     suspend fun downloadTrailDetails(trailUuid: String) {
@@ -103,20 +109,32 @@ class RadarRepository @Inject constructor(
         } catch (_: Exception) {}
     }
 
-    suspend fun uploadRaceRun(run: RaceRunEntity): String? {
-        try {
+    data class RaceRunResult(
+        val sessionUuid: String? = null,
+        val errorMessage: String? = null  // non-null only on 403 cooldown rejection
+    )
+
+    suspend fun uploadRaceRun(run: RaceRunEntity): RaceRunResult {
+        return try {
             val response = apiService.uploadRaceRun(run)
-            if (response.isSuccessful) {
-                return response.body()?.sessionUuid
+            when {
+                response.isSuccessful -> RaceRunResult(sessionUuid = response.body()?.sessionUuid)
+                response.code() == 403 -> {
+                    val raw = response.errorBody()?.string()
+                    val msg = try { raw?.let { org.json.JSONObject(it).getString("error") } } catch (_: Exception) { null }
+                    RaceRunResult(errorMessage = msg ?: "No podés iniciar esta carrera todavía.")
+                }
+                else -> RaceRunResult()  // server/network error → proceed offline
             }
-        } catch (e: Exception) {}
-        return null
+        } catch (_: Exception) {
+            RaceRunResult()  // network unreachable → proceed offline
+        }
     }
 
-    suspend fun uploadGpsPosition(trailUuid: String, lat: Double, lon: Double, accuracy: Float) {
-        try {
+    suspend fun uploadGpsPosition(trailUuid: String, lat: Double, lon: Double, accuracy: Float): Boolean {
+        return try {
             val userIcon = userPreferences.userIconName.firstOrNull() ?: "runner"
-            apiService.uploadGpsPosition(mapOf(
+            val response = apiService.uploadGpsPosition(mapOf(
                 "trailUuid" to trailUuid,
                 "lat" to lat,
                 "lon" to lon,
@@ -124,14 +142,17 @@ class RadarRepository @Inject constructor(
                 "activityType" to userIcon,
                 "timestamp" to System.currentTimeMillis()
             ))
-        } catch (_: Exception) {}
+            response.isSuccessful
+        } catch (_: Exception) { false }
     }
 
-    suspend fun getLivePositions(trailUuid: String, sessionUuid: String? = null): List<com.appradar.data.remote.LivePosition> {
+    // Returns null on network/server error (caller should keep last known positions).
+    // Returns empty list only when the backend confirms no runners are in the session.
+    suspend fun getLivePositions(trailUuid: String, sessionUuid: String? = null): List<com.appradar.data.remote.LivePosition>? {
         return try {
             val response = apiService.getLivePositions(trailUuid, sessionUuid)
-            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
-        } catch (_: Exception) { emptyList() }
+            if (response.isSuccessful) response.body() else null
+        } catch (_: Exception) { null }
     }
 
     suspend fun getRankings(trailUuid: String, teamUuid: String? = null, sessionUuid: String? = null): List<com.appradar.data.remote.RankingEntry> {
@@ -232,5 +253,21 @@ class RadarRepository @Inject constructor(
 
     suspend fun markTracksAsSynced(trackUuids: List<String>) {
         radarDao.markTracksAsSynced(trackUuids)
+    }
+
+    suspend fun sendMessage(trailUuid: String, recipientUuid: String?, content: String): Boolean {
+        return try {
+            val res = apiService.sendMessage(
+                com.appradar.data.remote.SendMessageRequest(trailUuid, recipientUuid, content)
+            )
+            res.isSuccessful
+        } catch (_: Exception) { false }
+    }
+
+    suspend fun getMessages(trailUuid: String, since: Long): List<com.appradar.data.remote.MessageDto> {
+        return try {
+            val res = apiService.getMessages(trailUuid, since)
+            if (res.isSuccessful) res.body() ?: emptyList() else emptyList()
+        } catch (_: Exception) { emptyList() }
     }
 }

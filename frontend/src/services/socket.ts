@@ -76,6 +76,14 @@ export function offRaceEvent(cb: (event: { type: string; userName: string; trail
   getSocket().off('race_event', cb)
 }
 
+export function onNewMessage(cb: (msg: import('../types').MessageDto) => void) {
+  getSocket().on('new_message', cb)
+}
+
+export function offNewMessage(cb: (msg: import('../types').MessageDto) => void) {
+  getSocket().off('new_message', cb)
+}
+
 export function onSocketConnect(cb: () => void) {
   getSocket().on('connect', cb)
 }

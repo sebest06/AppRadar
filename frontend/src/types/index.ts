@@ -130,3 +130,13 @@ export interface RunHistoryEntry {
 }
 
 export type Paginated<T> = { data: T[]; total: number; limit: number; offset: number }
+
+export interface MessageDto {
+  uuid: string
+  senderUuid: string
+  senderName: string
+  recipientUuid: string | null
+  trailUuid: string
+  content: string
+  timestamp: number
+}

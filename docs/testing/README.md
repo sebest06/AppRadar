@@ -6,8 +6,8 @@ Inventario completo de todos los tests del proyecto. Cada test está descrito en
 
 | Tipo | Archivos | Tests | Documento |
 |------|----------|-------|-----------|
-| Backend unitarios (Jest) | 6 | 94 | [01-backend-jest.md](01-backend-jest.md) |
-| Frontend E2E (Playwright) | 7 | 35+ | [02-frontend-playwright.md](02-frontend-playwright.md) |
+| Backend unitarios (Jest) | 7 | 111 | [01-backend-jest.md](01-backend-jest.md) |
+| Frontend E2E (Playwright) | 9 | 57+ | [02-frontend-playwright.md](02-frontend-playwright.md) |
 | Android unitarios (JVM/Robolectric) | 5 | 33 | [03-android-unit.md](03-android-unit.md) |
 | Android integración (Maestro) | 7 | 5 flujos + 1 suite | [04-android-maestro.md](04-android-maestro.md) |
 | E2E legacy (Maestro) | 2 | 2 flujos | [04-android-maestro.md](04-android-maestro.md) |

@@ -69,7 +69,7 @@ simulate_runner() {
         adb -s "$device" emu geo fix "$lon" "$lat"
         
         # Simular tiempo de trote entre puntos (demora aleatoria entre 3 y 8 segundos)
-        local delay=$(( (RANDOM % 25) + 15 ))
+        local delay=$(( (RANDOM % 5) + 3 ))
         sleep "$delay"
     done
 

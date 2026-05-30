@@ -85,6 +85,17 @@ function createSchema(db) {
       accuracy REAL,
       timestamp INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      uuid TEXT PRIMARY KEY,
+      senderUuid TEXT NOT NULL,
+      senderName TEXT NOT NULL,
+      recipientUuid TEXT,
+      teamUuid TEXT,
+      trailUuid TEXT NOT NULL,
+      content TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    );
   `)
 }
 
@@ -93,6 +104,7 @@ function runMigrations(db) {
   try { db.exec(`ALTER TABLE users ADD COLUMN activityType TEXT DEFAULT 'runner'`) } catch (_) {}
   try { db.exec(`ALTER TABLE race_runs ADD COLUMN sos INTEGER DEFAULT 0`) } catch (_) {}
   try { db.exec(`ALTER TABLE trails ADD COLUMN teamUuid TEXT DEFAULT NULL`) } catch (_) {}
+  try { db.exec(`ALTER TABLE messages ADD COLUMN teamUuid TEXT`) } catch (_) {}
   try { db.exec(`ALTER TABLE race_runs ADD COLUMN isAbandoned INTEGER DEFAULT 0`) } catch (_) {}
   try { db.exec(`ALTER TABLE race_runs ADD COLUMN sessionUuid TEXT DEFAULT NULL`) } catch (_) {}
   db.exec(`CREATE INDEX IF NOT EXISTS idx_gps_user_trail_ts ON gps_positions(userUuid, trailUuid, timestamp)`)

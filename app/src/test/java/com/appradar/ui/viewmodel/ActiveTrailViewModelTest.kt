@@ -54,8 +54,8 @@ class ActiveTrailViewModelTest {
         every { mockPrefs.activeRunUuid } returns flowOf(null)
         every { mockPrefs.activeStartTime } returns flowOf(0L)
         every { mockPrefs.activeSessionUuid } returns flowOf(null)
-        coEvery { mockRepository.getLastRunForTrail(any()) } returns null
-        coEvery { mockRepository.getLivePositions(any(), any()) } returns emptyList()
+        coEvery { mockRepository.uploadRaceRun(any()) } returns RadarRepository.RaceRunResult()  // no cooldown, no session (offline)
+        coEvery { mockRepository.getLivePositions(any(), any()) } returns emptyList() // successful empty response
 
         viewModel = ActiveTrailViewModel(mockContext, mockRepository, mockPrefs)
     }

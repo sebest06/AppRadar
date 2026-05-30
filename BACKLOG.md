@@ -22,10 +22,13 @@ El SOS ya se guarda en el backend y muestra en el mapa web, pero no hay alerta p
 - [ ] Enviar notificación push al dispositivo del organizador cuando un corredor activa SOS
 - [ ] Incluir coordenadas GPS exactas en la notificación
 
-### A3. Crear una pantalla de visión general del equipo para el organizador
-- [ ] Crear una pantalla donde pueda ver en una lista ordenada la posicion de todos los corredores del equipo
-- [ ] Distinguir en la lista, si el corredor, abandono, pidio SOS, o termino la carrera
-- [ ] Permitir enviar un mensaje a algun corredor o a todos y que el corredor lo reciba como una notificación en la aplicación Android
+### ~~A3. Crear una pantalla de visión general del equipo para el organizador~~ ✅ Completado
+- [x] Pantalla `OrganizerScreen` con lista ordenada por posición de todos los corredores
+- [x] Iconos de estado: 🆘 SOS, 🏁 Completó, 🛑 Abandonó, 🏃 En carrera
+- [x] Botón "Mensaje" por corredor + FAB "Mensaje a todos" con diálogo de composición
+- [x] Backend: `POST /messages` (organizer) y `GET /messages?trailUuid=&since=` (runner)
+- [x] `TrackingService` encuesta mensajes cada 30 s y muestra notificación al corredor
+- [x] Acceso desde HomeScreen: ícono 📊 visible solo para organizadores en cada trail card
 ---
 
 ## Prioridad: ALTA — Frontend (pendiente)
@@ -78,6 +81,14 @@ Cuando estas en carrera, no queres tener tanta información distrayendote
 - [ ] Notificación: "Juan pasó el Checkpoint 3 — va en 2° lugar"
 - [ ] Notificación: "Ana activó el S.O.S."
 
+### M9. Permitir que los corredores puedan seguir y ser seguidos por otros corredores
+- [ ] Crear un nombre de usuario unico para cada corredor
+- [ ] Usar el nombre de usaurio unico para elegir que corredores seguir
+- [ ] Según el parametro de privacidad de cada corredor, puede requerir autorización por el corredor para aceptar que lo sigan
+- [ ] Crear la configuración de privacidad en el perfil de corredor, tanto para la web como para la aplicación del celular
+- [ ] Poner la cantidad de corredores que te siguen y a los que seguis en el perfil del corredor
+- [ ] Permitir que los corredores puedan crear carreras nuevas, y los corredores que lo siguen las pueden ver y correr
+- [ ] Permitir usar el historial de carreras de los corredores a los que se sigue para usarlas como corredores fantasmas en tus carreras
 ---
 
 ## Prioridad: BAJA — Mejoras técnicas

@@ -11,6 +11,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.DELETE
 
 interface RadarApiService {
 
@@ -44,6 +45,15 @@ interface RadarApiService {
         @Query("trailUuid") trailUuid: String,
         @Query("sessionUuid") sessionUuid: String? = null
     ): Response<List<LivePosition>>
+
+    @POST("messages")
+    suspend fun sendMessage(@Body body: SendMessageRequest): Response<Unit>
+
+    @GET("messages")
+    suspend fun getMessages(
+        @Query("trailUuid") trailUuid: String,
+        @Query("since") since: Long
+    ): Response<List<MessageDto>>
 }
 
 data class LoginResponse(
@@ -96,4 +106,20 @@ data class PaginatedResponse<T>(
     val total: Int,
     val limit: Int,
     val offset: Int
+)
+
+data class SendMessageRequest(
+    val trailUuid: String,
+    val recipientUuid: String?,
+    val content: String
+)
+
+data class MessageDto(
+    val uuid: String,
+    val senderUuid: String,
+    val senderName: String,
+    val recipientUuid: String?,
+    val trailUuid: String,
+    val content: String,
+    val timestamp: Long
 )

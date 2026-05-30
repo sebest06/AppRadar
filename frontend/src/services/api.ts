@@ -138,3 +138,10 @@ export const racesApi = {
   heatmap: (trailId: string, sessionUuid?: string) =>
     api.get<[number, number][]>(`/races/${trailId}/heatmap`, { params: sessionUuid ? { sessionUuid } : {} }),
 }
+
+export const messagesApi = {
+  send: (trailUuid: string, recipientUuid: string | null, content: string) =>
+    api.post<{ ok: boolean }>('/messages', { trailUuid, recipientUuid, content }),
+  get: (trailUuid: string, since: number) =>
+    api.get<import('../types').MessageDto[]>('/messages', { params: { trailUuid, since } }),
+}

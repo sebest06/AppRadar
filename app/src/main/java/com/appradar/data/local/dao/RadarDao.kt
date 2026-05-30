@@ -54,6 +54,15 @@ interface RadarDao {
     @Query("DELETE FROM tracks WHERE runUuid = :runUuid")
     suspend fun deleteTracksForRun(runUuid: String)
 
+    @Query("DELETE FROM trails")
+    suspend fun deleteAllTrails()
+
+    @Query("DELETE FROM waypoints")
+    suspend fun deleteAllWaypoints()
+
+    @Query("DELETE FROM path_points")
+    suspend fun deleteAllPathPoints()
+
     @Query("SELECT * FROM trails")
     fun getAllTrails(): Flow<List<TrailEntity>>
 

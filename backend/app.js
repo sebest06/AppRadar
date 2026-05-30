@@ -31,6 +31,7 @@ function createApp(db) {
   app.use(require('./src/routes/trails')(db))
   app.use(require('./src/routes/races')(db))
   app.use(require('./src/routes/gps')(db))
+  app.use(require('./src/routes/messages')(db))
 
   // SPA fallback — must come after all API routes
   if (IS_PROD) {

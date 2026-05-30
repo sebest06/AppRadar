@@ -21,11 +21,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.appradar.ui.navigation.Screen
 import com.appradar.ui.screens.ActiveTrailScreen
-import com.appradar.ui.screens.CreateRaceScreen
 import com.appradar.ui.screens.HomeScreen
 import com.appradar.ui.screens.LeaderboardScreen
 import com.appradar.ui.screens.LoginScreen
-import com.appradar.ui.screens.RaceHistoryScreen
+import com.appradar.ui.screens.OrganizerScreen
 import com.appradar.ui.screens.SettingsScreen
 import com.appradar.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -90,7 +89,6 @@ fun AppNavGraph(startDestination: String) {
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Screen.Login.route) { LoginScreen(navController) }
         composable(Screen.Home.route) { HomeScreen(navController) }
-        composable(Screen.CreateRace.route) { CreateRaceScreen(navController) }
         composable(
             route = Screen.ActiveTrail.route,
             arguments = listOf(navArgument("trailUuid") { type = NavType.StringType })
@@ -109,7 +107,13 @@ fun AppNavGraph(startDestination: String) {
             val teamUuid = backStackEntry.arguments?.getString("teamUuid") ?: ""
             LeaderboardScreen(navController, trailUuid, teamUuid)
         }
-        composable(Screen.RaceHistory.route) { RaceHistoryScreen(navController) }
         composable(Screen.Settings.route) { SettingsScreen(navController) }
+        composable(
+            route = Screen.OrganizerDashboard.route,
+            arguments = listOf(navArgument("trailUuid") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val trailUuid = backStackEntry.arguments?.getString("trailUuid") ?: ""
+            OrganizerScreen(navController, trailUuid)
+        }
     }
 }

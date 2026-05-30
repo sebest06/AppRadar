@@ -4,7 +4,7 @@ Tests end-to-end que simulan un usuario real interactuando con el navegador. Pla
 
 **Cómo correrlos:** `cd frontend && npm run test:e2e`
 
-**Total:** 31+ tests en 6 archivos
+**Total:** 57+ tests en 9 archivos
 
 ---
 
@@ -228,3 +228,134 @@ Llama directamente a `GET /races/:id/heatmap` sin header de autorización. Verif
 
 **4. El endpoint de heatmap filtrado por sesión devuelve solo los puntos de esa sesión**
 Llama a `/heatmap` sin filtro y verifica 2000 puntos. Luego llama con un `sessionUuid` inexistente (UUID de ceros) y verifica que devuelve 200 con array vacío.
+
+---
+
+## 2.8 Panel del Organizador
+
+**Archivo:** `frontend/tests/organizer-panel.spec.ts`
+
+Setup: crea organizador con equipo, 4 corredores con distintos estados (completó, SOS, abandonó, en carrera) y 1 corredor sin rol de organizer. Crea trail y runs para cada corredor. Todo vía API en `beforeAll`.
+
+---
+
+**1. El organizador ve el panel con la lista de corredores**
+Hace login como organizador, navega a `/races/:id/organizer`. Verifica que el heading "Panel del Organizador" es visible y que la tabla tiene exactamente 4 filas.
+
+---
+
+**2. Muestra el badge "Completó" para el corredor que terminó**
+Verifica que el texto "Completó" aparece en la tabla del panel.
+
+---
+
+**3. Muestra el badge "SOS activo" para el corredor en emergencia**
+Verifica que el texto "SOS activo" aparece en la tabla.
+
+---
+
+**4. Muestra el badge "Abandonó" para el corredor que abandonó**
+Verifica que el texto "Abandonó" aparece en la tabla.
+
+---
+
+**5. Muestra el badge "En carrera" para el corredor activo**
+Verifica que el texto "En carrera" aparece en la tabla.
+
+---
+
+**6. Un corredor ve el mensaje de acceso denegado**
+Hace login como corredor y navega al panel. Verifica que aparece "solo los organizadores" y que no redirige a `/login`.
+
+---
+
+**7. El organizador puede enviar un mensaje individual a un corredor**
+Hace clic en el primer botón "💬 Mensaje", completa el diálogo y envía. Verifica que aparece el toast "Mensaje enviado ✓".
+
+---
+
+**8. El organizador puede enviar un mensaje a todos los corredores**
+Hace clic en "📢 Mensaje a todos", completa y envía. Verifica que aparece el toast "Mensaje enviado a todos ✓".
+
+---
+
+**9. El botón Enviar está desactivado con el campo vacío**
+Abre el diálogo de broadcast y verifica que el botón "Enviar" tiene el atributo `disabled` cuando el campo está vacío.
+
+---
+
+**10. Cancelar el diálogo cierra sin enviar**
+Abre el diálogo, hace clic en "Cancelar" y verifica que el diálogo desaparece y no aparece ningún toast.
+
+---
+
+**11. POST /messages acepta mensajes del organizador (backend directo)**
+Llama directamente al endpoint con el token del organizador y verifica status 200 y `ok: true`.
+
+---
+
+**12. GET /messages devuelve los mensajes broadcast enviados (backend directo)**
+El corredor llama a `/messages?trailUuid=&since=0` y verifica que el mensaje broadcast enviado en el test 8 aparece en la respuesta.
+
+---
+
+**13. El link "Panel" es visible en la barra de LiveRace para el organizador**
+Navega a la vista en vivo como organizador y verifica que el link "📋 Panel" es visible en el header.
+
+---
+
+**14. El link "Panel" lleva al organizador al panel correcto**
+Hace clic en el link "Panel" y verifica que la URL cambia a `/races/:id/organizer` y el heading es visible.
+
+---
+
+**15. El link "Panel" NO es visible en LiveRace para un corredor normal**
+Navega a la vista en vivo como corredor y verifica que el link "📋 Panel" está oculto.
+
+---
+
+## 2.9 Recepción de mensajes en LiveRace
+
+**Archivo:** `frontend/tests/live-race-messages.spec.ts`
+
+Setup: crea organizador con equipo, 2 corredores y un trail. Todo vía API en `beforeAll`.
+
+---
+
+**1. Aparece notificación de mensaje broadcast al cargar LiveRace**
+Envía un mensaje broadcast vía API. El corredor navega a LiveRace. El poll inmediato al montar recupera el mensaje y muestra una notificación azul flotante en la esquina inferior izquierda.
+
+---
+
+**2. Aparece notificación de mensaje individual al cargar LiveRace**
+Envía un mensaje con `recipientUuid` del corredor. Verifica que la notificación aparece al cargar la página.
+
+---
+
+**3. La notificación muestra el nombre del organizador como remitente**
+Verifica que el banner de notificación incluye el `nombre` del organizador (no solo el mensaje).
+
+---
+
+**4. NO aparece notificación de mensaje dirigido a otro corredor**
+Envía un mensaje a runner2. Runner1 navega a LiveRace, espera que el poll termine y verifica que el mensaje no es visible.
+
+---
+
+**5. Detecta un mensaje nuevo enviado durante la sesión (polling 20s)**
+Intercepta el primer poll con `page.route` para devolver vacío (simulando que el mensaje llega después). Instala el reloj falso con `page.clock.install()`. Envía el mensaje vía API. Avanza 21 segundos con `page.clock.fastForward()`. Verifica que la notificación aparece.
+
+---
+
+**6. La notificación se auto-descarta tras 10 segundos**
+Instala el reloj falso. El corredor navega a LiveRace y la notificación aparece desde el mount. Avanza 11 segundos. Verifica que la notificación ya no es visible.
+
+---
+
+**7. El mensaje enviado desde el OrganizerPanel llega al corredor en LiveRace (integración)**
+El organizador abre el OrganizerPanel, hace clic en "📢 Mensaje a todos", escribe y envía. Luego llama a `GET /messages` como runner1 y verifica que el mensaje aparece con el `senderName` correcto.
+
+---
+
+**8. El endpoint GET /messages filtra correctamente (backend directo)**
+Envía tres mensajes: uno broadcast, uno para runner1, uno para runner2. Llama a `GET /messages` como runner1 y verifica que ve el broadcast y el suyo, pero no el de runner2.

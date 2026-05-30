@@ -41,8 +41,14 @@ function createRacesRouter(db) {
       const cooldownError = checkCooldown(db, run)
       if (cooldownError) return res.status(403).json(cooldownError)
       insertRun(db, run, sessionUuid)
+      // Auto-activate trail when a runner starts
+      db.prepare('UPDATE trails SET isActive = 1 WHERE trailUuid = ?').run(run.trailUuid)
     } else {
       updateRun(db, run, sessionUuid, existing)
+      // Auto-deactivate when every runner in the session has finished or abandoned
+      if ((run.isCompleted || run.isAbandoned) && isSessionComplete(db, run.trailUuid, sessionUuid)) {
+        db.prepare('UPDATE trails SET isActive = 0 WHERE trailUuid = ?').run(run.trailUuid)
+      }
     }
 
     res.status(200).json({ ok: true, sessionUuid })
@@ -279,10 +285,18 @@ ${trkpts}
   return router
 }
 
+// Returns true when every runner in a session has either completed or abandoned.
+function isSessionComplete(db, trailUuid, sessionUuid) {
+  if (!sessionUuid) return true
+  const { count } = db.prepare(`
+    SELECT COUNT(*) as count FROM race_runs
+    WHERE trailUuid = ? AND sessionUuid = ? AND isCompleted = 0 AND isAbandoned = 0
+  `).get(trailUuid, sessionUuid)
+  return count === 0
+}
+
 function findOrCreateSession(db, trailUuid, startTime) {
   const ts = startTime || Date.now()
-  // Use SESSION_WINDOW_MS (always 1h) so runners starting within the same race
-  // are grouped together regardless of the per-user cooldown setting.
   const row = db.prepare(`
     SELECT sessionUuid, MIN(startTime) as sessionStart
     FROM race_runs
@@ -291,21 +305,41 @@ function findOrCreateSession(db, trailUuid, startTime) {
     HAVING sessionStart >= ? AND sessionStart <= ?
     ORDER BY sessionStart DESC LIMIT 1
   `).get(trailUuid, ts - SESSION_WINDOW_MS, ts + SESSION_WINDOW_MS)
-  return row?.sessionUuid ?? uuidv4()
+
+  // Only join an existing session if it still has active runners.
+  // If the session is complete (all done), create a new one even within the time window.
+  if (row?.sessionUuid && !isSessionComplete(db, trailUuid, row.sessionUuid)) {
+    return row.sessionUuid
+  }
+  return uuidv4()
 }
 
 function checkCooldown(db, run) {
-  const lastRun = db.prepare(`
-    SELECT startTime FROM race_runs WHERE trailUuid = ? AND userUuid = ? ORDER BY startTime DESC LIMIT 1
-  `).get(run.trailUuid, run.userUuid)
+  const currentSession = latestSession(db, run.trailUuid)
 
-  if (!lastRun) return null
+  // No previous session, or all runners already finished → allow
+  if (!currentSession || isSessionComplete(db, run.trailUuid, currentSession)) return null
 
-  const diff = (run.startTime || Date.now()) - lastRun.startTime
-  if (diff >= COOLDOWN_MS) return null
+  // Active session: check if the join window is still open.
+  const sessionStart = db.prepare(
+    'SELECT MIN(startTime) as t FROM race_runs WHERE sessionUuid = ?'
+  ).get(currentSession)?.t ?? Date.now()
 
-  const remaining = Math.ceil((COOLDOWN_MS - diff) / 60000)
-  return { error: `Debes esperar ${remaining} minutos para iniciar una nueva carrera en esta ruta.`, remainingMinutes: remaining }
+  const sessionAge = (run.startTime || Date.now()) - sessionStart
+  // COOLDOWN_MS=0 means no time restriction (testing mode), window is always open
+  const joinWindowOpen = COOLDOWN_MS === 0 || sessionAge < COOLDOWN_MS
+
+  if (joinWindowOpen) {
+    // A runner already in this session cannot start a second run on the same trail
+    const alreadyIn = db.prepare(
+      'SELECT 1 FROM race_runs WHERE sessionUuid = ? AND userUuid = ?'
+    ).get(currentSession, run.userUuid)
+    if (!alreadyIn) return null  // New runner joining within the window → OK
+    return { error: 'Ya estás participando en esta carrera activa. Esperá a que todos terminen para empezar una nueva.' }
+  }
+
+  // Join window expired: race is closed for new entrants until everyone finishes
+  return { error: 'La carrera ya cerró el ingreso de nuevos corredores. Esperá a que todos finalicen para empezar una nueva.' }
 }
 
 function insertRun(db, run, sessionUuid) {

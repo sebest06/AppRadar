@@ -137,23 +137,32 @@ describe('Ciclo de vida de una carrera', () => {
       expect(run.isCompleted).toBe(1)
     })
 
-    it('bloquea iniciar una segunda carrera en la misma ruta antes de que pase 1 hora', async () => {
+    it('bloquea al mismo corredor iniciar otra carrera en la misma ruta si la sesión sigue activa', async () => {
       const res = await request(app)
         .post('/runs/upload')
         .set('Authorization', `Bearer ${runnerToken}`)
         .send({ runUuid: uuidv4(), trailUuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
 
       expect(res.status).toBe(403)
-      expect(res.body.remainingMinutes).toBeGreaterThan(0)
+      expect(res.body.error).toMatch(/participando/)
     })
 
-    it('informa cuántos minutos restan para poder iniciar otra carrera', async () => {
+    it('un segundo corredor nuevo puede unirse a la sesión activa dentro del tiempo de ingreso', async () => {
+      const runner3Res = await request(app).post('/auth/register').send({
+        user: 'runner3_join',
+        passw: 'password123',
+        nombre: 'Runner 3 Join',
+        uuid_team: organizerTeamUuid,
+        role: 'runner',
+      })
       const res = await request(app)
         .post('/runs/upload')
-        .set('Authorization', `Bearer ${runnerToken}`)
-        .send({ runUuid: uuidv4(), trailUuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
+        .set('Authorization', `Bearer ${runner3Res.body.token}`)
+        .send({ runUuid: uuidv4(), trailUuid, userUuid: runner3Res.body.user.uuid, startTime: Date.now(), isCompleted: false })
 
-      expect(res.body.remainingMinutes).toBeLessThanOrEqual(60)
+      // COOLDOWN_MINUTES=60 por defecto → join window abierta → nuevo corredor puede unirse
+      expect(res.status).toBe(200)
+      expect(res.body.sessionUuid).toBe(sessionUuid)
     })
 
     it('devuelve 401 sin token de autenticación', async () => {
@@ -161,6 +170,102 @@ describe('Ciclo de vida de una carrera', () => {
         .post('/runs/upload')
         .send({ runUuid: uuidv4(), trailUuid, userUuid: runnerUuid, startTime: Date.now() })
       expect(res.status).toBe(401)
+    })
+  })
+
+  describe('Ciclo de vida automático del trail (isActive)', () => {
+    let lifecycleTrailUuid
+    let runUuid
+
+    beforeAll(async () => {
+      const trail = await createTrail(app, organizerToken)
+      lifecycleTrailUuid = trail.trailUuid
+    })
+
+    it('el trail se activa automáticamente cuando un corredor inicia carrera', async () => {
+      runUuid = uuidv4()
+      await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid, trailUuid: lifecycleTrailUuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
+
+      const trail = db.prepare('SELECT isActive FROM trails WHERE trailUuid = ?').get(lifecycleTrailUuid)
+      expect(trail.isActive).toBe(1)
+    })
+
+    it('el trail sigue activo mientras haya corredores en carrera', async () => {
+      // El corredor sigue corriendo (no completó ni abandonó), el trail debe seguir activo
+      await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid, trailUuid: lifecycleTrailUuid, userUuid: runnerUuid, startTime: Date.now() - 1000, isCompleted: false, isAbandoned: false })
+
+      const trail = db.prepare('SELECT isActive FROM trails WHERE trailUuid = ?').get(lifecycleTrailUuid)
+      expect(trail.isActive).toBe(1)
+    })
+
+    it('el trail se desactiva automáticamente cuando el último corredor termina', async () => {
+      await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid, trailUuid: lifecycleTrailUuid, userUuid: runnerUuid, startTime: Date.now() - 5000, endTime: Date.now(), totalTime: 5000, isCompleted: true })
+
+      const trail = db.prepare('SELECT isActive FROM trails WHERE trailUuid = ?').get(lifecycleTrailUuid)
+      expect(trail.isActive).toBe(0)
+    })
+
+    it('permite iniciar nueva carrera inmediatamente después de que todos terminaron (ignora cooldown)', async () => {
+      // La sesión anterior está completa → no aplica cooldown aunque no haya pasado 1 hora
+      const res = await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: uuidv4(), trailUuid: lifecycleTrailUuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
+
+      expect(res.status).toBe(200)
+      expect(res.body.sessionUuid).not.toBe(runUuid)
+    })
+
+    it('la nueva carrera tras completar crea una sesión nueva', async () => {
+      const trail2Uuid = (await createTrail(app, organizerToken)).trailUuid
+      const run1 = uuidv4()
+      const s1Res = await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: run1, trailUuid: trail2Uuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
+      const session1 = s1Res.body.sessionUuid
+
+      // Completar la carrera → sesión completa
+      await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: run1, trailUuid: trail2Uuid, userUuid: runnerUuid, isCompleted: true, totalTime: 1000 })
+
+      // Nueva carrera debe tener sessionUuid diferente
+      const run2 = uuidv4()
+      const s2Res = await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: run2, trailUuid: trail2Uuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
+
+      expect(s2Res.status).toBe(200)
+      expect(s2Res.body.sessionUuid).not.toBe(session1)
+    })
+
+    it('el trail se desactiva también cuando el último corredor abandona', async () => {
+      const trail3Uuid = (await createTrail(app, organizerToken)).trailUuid
+      const run1 = uuidv4()
+      await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: run1, trailUuid: trail3Uuid, userUuid: runnerUuid, startTime: Date.now(), isCompleted: false })
+
+      await request(app)
+        .post('/runs/upload')
+        .set('Authorization', `Bearer ${runnerToken}`)
+        .send({ runUuid: run1, trailUuid: trail3Uuid, userUuid: runnerUuid, isAbandoned: true, totalTime: 500 })
+
+      const trail = db.prepare('SELECT isActive FROM trails WHERE trailUuid = ?').get(trail3Uuid)
+      expect(trail.isActive).toBe(0)
     })
   })
 

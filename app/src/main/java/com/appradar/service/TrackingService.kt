@@ -21,13 +21,18 @@ import com.appradar.util.LocationHelper
 import com.appradar.util.formatGapLine
 import com.google.android.gms.location.*
 import dagger.hilt.android.AndroidEntryPoint
+import io.socket.client.IO
+import io.socket.client.Socket
+import io.socket.emitter.Emitter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.util.UUID
 import javax.inject.Inject
 
@@ -36,6 +41,9 @@ class TrackingService : Service() {
 
     @Inject
     lateinit var repository: RadarRepository
+
+    @Inject
+    lateinit var userPreferences: com.appradar.util.UserPreferences
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
@@ -50,7 +58,9 @@ class TrackingService : Service() {
     private val reachedWaypoints = mutableSetOf<String>()
     private var maxSkip = 1
     private var lastGpsUploadMs = 0L
+    private var consecutiveUploadFailures = 0
     private var dataJob: kotlinx.coroutines.Job? = null
+    private var socket: Socket? = null
 
     private data class TeammateSnapshot(
         val waypointsReached: Int,
@@ -71,10 +81,13 @@ class TrackingService : Service() {
         private const val TRACKING_CHANNEL_ID = "TrackingChannel"
         private const val RANKING_CHANNEL_ID = "RankingChannel"
         private const val TEAMMATE_CHANNEL_ID = "TeammateChannel"
+        private const val MESSAGES_CHANNEL_ID = "MessagesChannel"
         private const val TRACKING_NOTIFICATION_ID = 1
         private const val RANKING_NOTIFICATION_ID = 2
         private const val TEAMMATE_NOTIFICATION_BASE = 1000
+        private const val MESSAGE_NOTIFICATION_BASE = 2000
         private const val RANKING_POLL_MS = 30_000L
+        private const val MESSAGES_POLL_MS = 30_000L
 
         var isServiceRunning = false
             private set
@@ -124,6 +137,8 @@ class TrackingService : Service() {
                 }
             }
             startRankingPolling()
+            startMessagePolling()
+            connectSocket()
         }
 
         return START_STICKY
@@ -141,17 +156,28 @@ class TrackingService : Service() {
     }
 
     private fun processLocation(location: Location) {
-        val wps = waypoints
-        if (wps.isEmpty() || runUuid.isEmpty()) return
+        if (runUuid.isEmpty()) return
 
-        // Upload GPS position to backend every 15 seconds for live map
+        // Upload GPS position to backend every 15 seconds for live map.
+        // This does NOT require waypoints to be loaded — runs independently of waypoint detection.
         val now = System.currentTimeMillis()
         if (now - lastGpsUploadMs >= 15_000L) {
             lastGpsUploadMs = now
-            serviceScope.launch { 
-                repository.uploadGpsPosition(trailUuid, location.latitude, location.longitude, location.accuracy) 
+            serviceScope.launch {
+                val ok = repository.uploadGpsPosition(trailUuid, location.latitude, location.longitude, location.accuracy)
+                if (ok) {
+                    consecutiveUploadFailures = 0
+                    updateTrackingNotification(connected = true)
+                } else {
+                    consecutiveUploadFailures++
+                    if (consecutiveUploadFailures >= 3) updateTrackingNotification(connected = false)
+                }
             }
         }
+
+        // Waypoint detection requires the waypoints list to be loaded from local DB first.
+        val wps = waypoints
+        if (wps.isEmpty()) return
 
         serviceScope.launch {
             val startIndex = reachedWaypoints.size
@@ -162,7 +188,7 @@ class TrackingService : Service() {
             for (i in startIndex..limitIndex) {
                 val wp = wps[i]
                 if (LocationHelper.isWithinWaypointRadius(location, wp.latitude, wp.longitude, wp.radiusInMeters)) {
-                    val now = System.currentTimeMillis()
+                    val wpTime = System.currentTimeMillis()
                     for (j in startIndex..i) {
                         val wpj = wps[j]
                         if (!reachedWaypoints.contains(wpj.waypointUuid)) {
@@ -174,14 +200,51 @@ class TrackingService : Service() {
                                     runUuid = runUuid,
                                     userUuid = userUuid,
                                     waypointUuid = wpj.waypointUuid,
-                                    timestamp = now,
-                                    timeFromStart = now - startTimeMillis
+                                    timestamp = wpTime,
+                                    timeFromStart = wpTime - startTimeMillis
                                 )
                             )
                         }
                     }
                     break
                 }
+            }
+        }
+    }
+
+    // ── Socket.IO — real-time message delivery ────────────────────────────────
+
+    private fun connectSocket() {
+        serviceScope.launch {
+            try {
+                val url   = userPreferences.apiUrl.firstOrNull()?.trimEnd('/') ?: return@launch
+                val token = userPreferences.authToken.firstOrNull()            ?: return@launch
+
+                val opts = IO.Options.builder()
+                    .setAuth(mapOf("token" to token))
+                    .setReconnection(true)
+                    .build()
+
+                socket = IO.socket(url, opts).also { s ->
+                    s.on("new_message", Emitter.Listener { args ->
+                        val data = args.getOrNull(0) as? JSONObject ?: return@Listener
+                        val senderUuid    = data.optString("senderUuid")
+                        val recipientUuid = data.optString("recipientUuid").takeIf { it.isNotEmpty() }
+                        if (senderUuid == userUuid) return@Listener
+                        if (recipientUuid != null && recipientUuid != userUuid) return@Listener
+
+                        val senderName = data.optString("senderName", "Organizador")
+                        val content    = data.optString("content", "")
+                        val timestamp  = data.optLong("timestamp", System.currentTimeMillis())
+
+                        showMessageNotification(senderName, content)
+                        if (timestamp > lastMessageTs) lastMessageTs = timestamp
+                    })
+                    s.connect()
+                    s.emit("join_race", JSONObject().put("trailUuid", trailUuid))
+                }
+            } catch (_: Exception) {
+                // Socket.IO unavailable — fallback polling still active
             }
         }
     }
@@ -193,6 +256,37 @@ class TrackingService : Service() {
             while (isActive) {
                 delay(RANKING_POLL_MS)
                 fetchAndNotifyRanking()
+            }
+        }
+    }
+
+    // ── Message polling ───────────────────────────────────────────────────────
+
+    private var lastMessageTs = System.currentTimeMillis()
+    private var messageNotifId = MESSAGE_NOTIFICATION_BASE
+
+    private fun showMessageNotification(senderName: String, content: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notif = NotificationCompat.Builder(this, MESSAGES_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setContentTitle("Mensaje de $senderName")
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(messageNotifId++, notif)
+    }
+
+    private fun startMessagePolling() {
+        serviceScope.launch {
+            while (isActive) {
+                delay(MESSAGES_POLL_MS)
+                if (trailUuid.isNotEmpty()) {
+                    val messages = repository.getMessages(trailUuid, lastMessageTs)
+                    messages.forEach { showMessageNotification(it.senderName, it.content) }
+                    if (messages.isNotEmpty()) lastMessageTs = messages.maxOf { it.timestamp }
+                }
             }
         }
     }
@@ -344,13 +438,18 @@ class TrackingService : Service() {
 
     // ── Notifications ─────────────────────────────────────────────────────────
 
-    private fun buildTrackingNotification(): Notification =
+    private fun buildTrackingNotification(connected: Boolean = true): Notification =
         NotificationCompat.Builder(this, TRACKING_CHANNEL_ID)
             .setContentTitle("AppRadar en Carrera")
-            .setContentText("Rastreo GPS activo")
+            .setContentText(if (connected) "Rastreo GPS activo · enviando al servidor" else "⚠️ Sin conexión al servidor — verificá la URL en Ajustes")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .build()
+
+    private fun updateTrackingNotification(connected: Boolean) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(TRACKING_NOTIFICATION_ID, buildTrackingNotification(connected))
+    }
 
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -366,6 +465,11 @@ class TrackingService : Service() {
                     description = "Avisos cuando un compañero pasa un waypoint, finaliza o activa SOS"
                 }
             )
+            nm.createNotificationChannel(
+                NotificationChannel(MESSAGES_CHANNEL_ID, "Mensajes del organizador", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Mensajes enviados por el organizador durante la carrera"
+                }
+            )
         }
     }
 
@@ -376,6 +480,8 @@ class TrackingService : Service() {
         isServiceRunning = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
         serviceScope.cancel()
+        socket?.disconnect()
+        socket = null
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .cancel(RANKING_NOTIFICATION_ID)
     }

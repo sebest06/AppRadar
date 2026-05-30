@@ -101,49 +101,64 @@ class ActiveTrailViewModel @Inject constructor(
                 currentSessionUuid = userPreferences.activeSessionUuid.first()
                 lastStartTimeMillis = initialStartTimeMillis
                 accumulatedTimeMillis = 0L
-                
+
                 // Recuperar waypoints ya alcanzados para esta carrera
                 repository.getTracksForRun(currentRunUuid).collect { tracks ->
                     _reachedWaypoints.value = tracks.map { it.waypointUuid }.toSet()
                 }
-                
+
                 startTimer()
+                startTeammatePolling(trailUuid)
             }
         }
     }
 
     fun startRace() {
         if (_isRaceStarted.value) return
-        
+
         viewModelScope.launch {
             _error.value = null
-            val trailId = _trail.value?.trailUuid ?: ""
-            val lastRun = repository.getLastRunForTrail(trailId)
-            
-            if (lastRun != null) {
-                val diff = System.currentTimeMillis() - lastRun.startTime
-                val oneHour = 3600_000L
-                if (diff < oneHour) {
-                    val remainingMs = oneHour - diff
-                    val remainingMins = (remainingMs / 60_000L).coerceAtLeast(1)
-                    _error.value = "Espera $remainingMins min para una nueva carrera."
-                    return@launch
-                }
+            val trailId = _trail.value?.trailUuid ?: return@launch
+
+            // Build the run entity upfront so we can check cooldown with the backend first.
+            val newRunUuid = UUID.randomUUID().toString()
+            val startTime = System.currentTimeMillis()
+            val initialRun = RaceRunEntity(
+                runUuid    = newRunUuid,
+                trailUuid  = trailId,
+                userUuid   = currentUser.value?.uuid ?: "",
+                trailName  = _trail.value?.name ?: "Carrera",
+                startTime  = startTime,
+                isCompleted = false,
+                isAbandoned = false,
+                sos         = false,
+                isSynced    = false
+            )
+
+            // Attempt backend registration first.
+            // 403 (cooldown) → abort with the server's message.
+            // Network error → proceed offline-first (RACE_COOLDOWN_MINUTES is enforced on the server).
+            val result = repository.uploadRaceRun(initialRun)
+            if (result.errorMessage != null) {
+                _error.value = result.errorMessage
+                return@launch
             }
 
             _isRaceStarted.value = true
             _isPaused.value = false
             _reachedWaypoints.value = emptySet()
             _elapsedTimeMillis.value = 0L
-            currentRunUuid = UUID.randomUUID().toString()
-            initialStartTimeMillis = System.currentTimeMillis()
-            lastStartTimeMillis = initialStartTimeMillis
-            accumulatedTimeMillis = 0L
-            currentSessionUuid = null
+            currentRunUuid      = newRunUuid
+            initialStartTimeMillis = startTime
+            lastStartTimeMillis    = startTime
+            accumulatedTimeMillis  = 0L
+            currentSessionUuid     = result.sessionUuid
 
-            userPreferences.setActiveRace(trailId, currentRunUuid, initialStartTimeMillis, null)
+            userPreferences.setActiveRace(trailId, currentRunUuid, initialStartTimeMillis, currentSessionUuid)
+            repository.saveRaceRun(
+                initialRun.copy(sessionUuid = currentSessionUuid, isSynced = currentSessionUuid != null)
+            )
 
-            saveRaceRun(isCompleted = false)
             startTimer()
             startTrackingService()
             startTeammatePolling(trailId)
@@ -155,8 +170,12 @@ class ActiveTrailViewModel @Inject constructor(
         teammatePollingJob = viewModelScope.launch {
             while (true) {
                 val positions = repository.getLivePositions(trailUuid, currentSessionUuid)
-                val myUuid = currentUser.value?.uuid
-                _teammatePositions.value = positions.filter { it.userUuid != myUuid }
+                // Only update if the backend responded successfully (null = network/server error).
+                // Keeps last known positions visible instead of erasing them on a transient failure.
+                if (positions != null) {
+                    val myUuid = currentUser.value?.uuid
+                    _teammatePositions.value = positions.filter { it.userUuid != myUuid }
+                }
                 delay(TEAMMATE_POLL_MS)
             }
         }
@@ -286,33 +305,32 @@ class ActiveTrailViewModel @Inject constructor(
 
     private fun saveRaceRun(isCompleted: Boolean, isAbandoned: Boolean = false, totalTime: Long = 0L) {
         viewModelScope.launch {
-            val userIcon = userPreferences.userIconName.firstOrNull() ?: "runner"
             val run = RaceRunEntity(
-                runUuid = currentRunUuid,
-                trailUuid = _trail.value?.trailUuid ?: "",
-                userUuid = currentUser.value?.uuid ?: "",
-                trailName = _trail.value?.name ?: "Carrera",
-                startTime = initialStartTimeMillis,
-                endTime = if (isCompleted || isAbandoned) System.currentTimeMillis() else null,
-                totalTime = totalTime,
+                runUuid     = currentRunUuid,
+                trailUuid   = _trail.value?.trailUuid ?: "",
+                userUuid    = currentUser.value?.uuid ?: "",
+                trailName   = _trail.value?.name ?: "Carrera",
+                startTime   = initialStartTimeMillis,
+                endTime     = if (isCompleted || isAbandoned) System.currentTimeMillis() else null,
+                totalTime   = totalTime,
                 isCompleted = isCompleted,
                 isAbandoned = isAbandoned,
-                sos = _isSos.value,
+                sos         = _isSos.value,
                 sessionUuid = currentSessionUuid,
-                isSynced = false // Aseguramos que se intente sincronizar
+                isSynced    = false
             )
             repository.saveRaceRun(run)
 
             if (isCompleted || isAbandoned || _isSos.value) {
-                // Forzamos sincronización inmediata al finalizar, abandonar o SOS
                 repository.uploadUnsyncedData()
             } else if (currentSessionUuid == null) {
-                // Si es el inicio, intentamos obtener el sessionUuid
-                val sessionUuid = repository.uploadRaceRun(run)
-                if (sessionUuid != null) {
-                    currentSessionUuid = sessionUuid
-                    repository.saveRaceRun(run.copy(sessionUuid = sessionUuid, isSynced = true))
-                    userPreferences.setActiveRace(_trail.value?.trailUuid, currentRunUuid, initialStartTimeMillis, sessionUuid)
+                // Offline retry: try to get sessionUuid from backend.
+                // Only update if successful; ignore cooldown/errors (race already started).
+                val result = repository.uploadRaceRun(run)
+                if (result.sessionUuid != null) {
+                    currentSessionUuid = result.sessionUuid
+                    repository.saveRaceRun(run.copy(sessionUuid = result.sessionUuid, isSynced = true))
+                    userPreferences.setActiveRace(_trail.value?.trailUuid, currentRunUuid, initialStartTimeMillis, result.sessionUuid)
                 }
             }
         }

@@ -40,20 +40,12 @@ fun HomeScreen(
                             Icon(Icons.Default.Refresh, contentDescription = "Sincronizar")
                         }
                     }
-                    IconButton(onClick = { navController.navigate(Screen.RaceHistory.route) }) {
-                        Icon(Icons.Default.List, contentDescription = "Historial")
-                    }
                     IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
                         Icon(Icons.Filled.Settings, contentDescription = "Configuración")
                     }
                 }
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { navController.navigate(Screen.CreateRace.route) }) {
-                Icon(Icons.Default.Add, contentDescription = "Crear Carrera")
-            }
-        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -116,9 +108,15 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(trails) { trail ->
-                        TrailItem(trail) {
-                            navController.navigate(Screen.ActiveTrail.createRoute(trail.trailUuid))
-                        }
+                        val isOrg = currentUser?.role == "organizer" || currentUser?.role == "superuser"
+                        TrailItem(
+                            trail = trail,
+                            isOrganizer = isOrg,
+                            onStart = { navController.navigate(Screen.ActiveTrail.createRoute(trail.trailUuid)) },
+                            onOrganizerPanel = if (isOrg) ({
+                                navController.navigate(Screen.OrganizerDashboard.createRoute(trail.trailUuid))
+                            }) else null
+                        )
                     }
                 }
             }
@@ -128,18 +126,37 @@ fun HomeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrailItem(trail: TrailEntity, onClick: () -> Unit) {
+fun TrailItem(
+    trail: TrailEntity,
+    isOrganizer: Boolean = false,
+    onStart: () -> Unit,
+    onOrganizerPanel: (() -> Unit)? = null
+) {
     Card(
-        onClick = onClick,
+        onClick = onStart,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = trail.name, style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = "${trail.distanceKm} km | ${trail.elevationM} m+",
-                style = MaterialTheme.typography.bodySmall
-            )
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = trail.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "${trail.distanceKm} km | ${trail.elevationM} m+",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (isOrganizer && onOrganizerPanel != null) {
+                IconButton(onClick = onOrganizerPanel) {
+                    Icon(
+                        Icons.Default.Dashboard,
+                        contentDescription = "Panel del organizador",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
 }
